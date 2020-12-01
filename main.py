@@ -5,10 +5,10 @@ import time
 import numpy as np
 from PyQt5 import QtCore, QtWidgets
 
-from database import Database
+from Database import Database
 from logger import logger
-from visualizer import Visualizer
-from volume_profile import VolumeProfile
+from Visualizer import Visualizer
+from VolumeProfile import VolumeProfile
 
 
 class ApplicationWindow(QtWidgets.QMainWindow):
@@ -24,14 +24,14 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         self.volumeProfile = VolumeProfile(self)
 
-        self.previous_idx = 7
+        self.previousIndex = 7
         self.ui.cbInterval.setCurrentIndex(7)
 
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.updatePlot)
         # self.timer.start(5000)
 
-        self.ui.actionVolume_profile.triggered.connect(self.actionVolumeProfile)
+        self.ui.actionVolumeProfile.triggered.connect(self.actionVolumeProfile)
         self.ui.cbSymbol.currentIndexChanged.connect(self.cbSymbolSelect)
         self.ui.cbInterval.activated.connect(self.cbIntervalSelect)
         self.ui.cbRefresh.activated.connect(self.cbRefreshSelect)
@@ -48,14 +48,14 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def cbIntervalSelect(self, i):
         text = self.ui.cbInterval.currentText()
 
-        if i == self.previous_idx:
+        if i == self.previousIndex:
             self.visualizer.plot(resetLim=True)
             self.volumeProfile.vp_data.clear()
             self.volumeProfile.update(0)
         elif text == "-----":
-            self.ui.cbInterval.setCurrentIndex(self.previous_idx)
+            self.ui.cbInterval.setCurrentIndex(self.previousIndex)
         else:
-            self.previous_idx = i
+            self.previousIndex = i
             if text[-1] == "s":
                 text = text.replace("s", "S")
             elif text[-1] == "m":
@@ -149,9 +149,9 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
-        self.actionVolume_profile = QtWidgets.QAction(MainWindow)
-        self.actionVolume_profile.setObjectName("actionVolume_profile")
-        self.menuTools.addAction(self.actionVolume_profile)
+        self.actionVolumeProfile = QtWidgets.QAction(MainWindow)
+        self.actionVolumeProfile.setObjectName("actionVolume_profile")
+        self.menuTools.addAction(self.actionVolumeProfile)
         self.menubar.addAction(self.menuTools.menuAction())
 
         self.retranslateUi(MainWindow)
@@ -189,7 +189,7 @@ class Ui_MainWindow(object):
         self.cbRefresh.setItemText(3, _translate("MainWindow", "15s"))
         self.cbRefresh.setItemText(4, _translate("MainWindow", "20s"))
         self.menuTools.setTitle(_translate("MainWindow", "Tools"))
-        self.actionVolume_profile.setText(_translate("MainWindow", "Volume profile"))
+        self.actionVolumeProfile.setText(_translate("MainWindow", "Volume profile"))
 
 
 if __name__ == "__main__":
