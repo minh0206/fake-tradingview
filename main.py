@@ -6,7 +6,7 @@ import numpy as np
 from PyQt5 import QtCore, QtWidgets
 
 from database import Database
-from logger import logger
+from utils import logger
 from visualizer import Visualizer
 from volumeProfile import VolumeProfile
 
@@ -27,9 +27,13 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.previousIndex = 7
         self.ui.cbInterval.setCurrentIndex(7)
 
+        # self.console = pyqtgraph.console.ConsoleWidget(
+        #     namespace={"vs": self.visualizer}
+        # )
+        # self.console.show()
+
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.updatePlot)
-        # self.timer.start(5000)
 
         self.ui.actionVolumeProfile.triggered.connect(self.actionVolumeProfile)
         self.ui.cbSymbol.currentIndexChanged.connect(self.cbSymbolSelect)

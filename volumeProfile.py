@@ -3,7 +3,7 @@ import logging
 from dateutil.tz import tzlocal
 from PyQt5 import QtWidgets, QtCore
 
-from logger import logger
+from utils import logger
 
 
 class VolumeProfile(QtWidgets.QWidget):
@@ -24,7 +24,9 @@ class VolumeProfile(QtWidgets.QWidget):
         self.ui.btnDelete.clicked.connect(self.btnDeleteAllClicked)
 
         self.setNum(list(map(str, range(5, 35, 5))))
-        parent.visualizer.onPlot.connect(self.updateDate)
+
+        self.candlestick = parent.visualizer.candlestick
+        # onPlot.connect(self.updateDate)
 
     def updateDate(self):
         # interval = self.parent().db.ohlc_idx.freqstr

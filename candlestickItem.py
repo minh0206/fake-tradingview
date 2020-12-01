@@ -4,18 +4,35 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 
-from logger import logger
+from utils import Worker, logger
 
 
 class CandlestickItem(pg.GraphicsObject):
-    def __init__(self):
+    onPlot = QtCore.pyqtSignal()
+
+    def __init__(self, db):
         super().__init__()
+        # Candlestick
+        self.db = db
         self.ohlc = None
         self.data = None
         self.anchor = None
         self.step = None
         self.path = None
         self.limit = 500
+        self.totalBars = 500
+        self.plotting = False
+        self._boundingRect = None
+        self._boundsCache = [None, None]
+
+        # Volume profile
+        self.vpData = []
+        self.textItems = []
+        self.picture = QtGui.QPicture()
+
+        # Data init
+        ohlc = self.db.ohlc(self.totalBars, fetch_live=True)
+        self.setOHLC(ohlc)
 
         # Crosshair init
         self.vLine = pg.InfiniteLine(angle=90)
@@ -28,6 +45,48 @@ class CandlestickItem(pg.GraphicsObject):
         self.vTxt.setParentItem(self)
         self.hTxt = pg.TextItem(fill=(255, 255, 255, 50))
         self.hTxt.setParentItem(self)
+
+        # Connect signal
+        self.onPlot.connect(self.updatePlotStatus)
+
+    def plot(self, index=None, interval=None, fetch=0, live=False, resetLim=False):
+        worker = Worker(self.plot_thread, index, interval, fetch, live, resetLim)
+        QtCore.QThreadPool.globalInstance().start(worker)
+        # self.plot_thread(index, interval, fetch, live, reset_lim)
+
+    def plot_thread(
+        self, index=None, interval=None, fetch=0, live=False, resetLim=False
+    ):
+        if resetLim:
+            if interval[-1] == "S":
+                self.totalBars = 10000
+            elif interval[-1] == "T":
+                self.totalBars = 100
+            elif interval[-1] == "H":
+                self.totalBars = 50
+
+        if fetch:
+            self.totalBars += fetch
+
+        # start = time.time()
+        ohlc = self.db.ohlc(self.totalBars, live, index, interval)
+        # logger.debug(
+        #     "OHLC | Time: {:.3} | Len: {} | Queue: {}".format(
+        #         time.time() - start, len(ohlc), self.db.ohlc_q.qsize()
+        #     )
+        # )
+
+        if len(ohlc):
+            self.setOHLC(ohlc)
+            self.dataBounds(1)
+
+        if resetLim:
+            self.enableAutoRange()
+
+        self.onPlot.emit()
+
+    def updatePlotStatus(self):
+        self.plotting = False
 
     def setOHLC(self, ohlc):
         ohlc.index = ohlc.index.astype("int64") // 1e09
@@ -52,10 +111,10 @@ class CandlestickItem(pg.GraphicsObject):
                 return
             else:
                 dist = self.anchor - xRange[0]
-                if not self.getViewWidget().plotting and dist > 0:
+                if not self.plotting and dist > 0:
                     numBars = int(dist / self.step)
-                    self.getViewWidget().plotting = True
-                    self.getViewWidget().plot(fetch=numBars)
+                    self.plotting = True
+                    self.plot(fetch=numBars)
 
         start = max(0, int(xRange[0]) - 1)
         stop = int(min(self.ohlc[-1][0], xRange[1] + 2))
@@ -125,6 +184,8 @@ class CandlestickItem(pg.GraphicsObject):
         p.setPen(pg.mkPen("r"))
         p.setBrush(pg.mkBrush("r"))
         p.drawPath(redBars)
+
+        self.picture.play(p)
 
     def getPath(self):
         if self.path is None:
@@ -209,8 +270,9 @@ class CandlestickItem(pg.GraphicsObject):
         self.prepareGeometryChange()
 
     def viewRangeChanged(self):
-        worker = self.getViewWidget().Worker(self.updateOHLC)
-        QtCore.QThreadPool.globalInstance().start(worker)
+        # worker = Worker(self.updateOHLC)
+        # QtCore.QThreadPool.globalInstance().start(worker)
+        self.updateOHLC()
 
     def onMouseMoved(self, pos):
         mouse_point = self.getViewBox().mapSceneToView(pos)
@@ -231,10 +293,84 @@ class CandlestickItem(pg.GraphicsObject):
 
         dist = self.anchor - xlim[0]
         numBars = int(dist / self.step)
-        if not self.getViewWidget().plotting and numBars > 0:
-            self.getViewWidget().plotting = True
-            self.getViewWidget().plot(fetch=numBars)
+        if not self.plotting and numBars > 0:
+            self.plotting = True
+            self.plot(fetch=numBars)
 
-    def mouseDragEvent(self, *args):
-        pass
+    # Volume profile
+    def setAlpha(self, index, value):
+        self.vpData[index][4] = value
+        self.updateVolumeProfile()
 
+    def updateVolumeProfile(self):
+        self.picture = QtGui.QPicture()
+        p = QtGui.QPainter(self.picture)
+
+        for x, y, df, step, alpha in self.vpData:
+            p.setPen(pg.mkPen(100, 100, 100, alpha))
+            p.setBrush(pg.mkBrush(100, 100, 100, alpha))
+            p.drawRect(QtCore.QRectF(x[0], y[1], x[1] - x[0], y[0] - y[1]))
+
+            x_length = x[1] - x[0]
+            x_pos = minmax_scale(df.to_numpy(), (0.1 * x_length, x_length / 2))
+
+            for interval, width in zip(df.index, x_pos):
+                p.setBrush(pg.mkBrush(255, 0, 0, alpha))
+                p.drawRect(QtCore.QRectF(x[0], interval.left, width[0], step))
+
+                p.setBrush(pg.mkBrush(0, 255, 0, alpha))
+                p.drawRect(
+                    QtCore.QRectF(x[0] + width[0], interval.left, width[1], step)
+                )
+
+        p.end()
+        self.update()
+
+    def addText(self, data):
+        formatter = lambda x: str(round(x / 1e06, 2)) + "M"
+
+        x, y, df, _, _ = data
+
+        total = df.sum(axis=0)
+        item = pg.TextItem(
+            "Total: " + formatter(total[0]) + " X " + formatter(total[1])
+        )
+        item.setPos(x[0], y[0])
+        item.setParentItem(self)
+
+        items = [item]
+        for interval, volume in zip(df.index, df.to_numpy()):
+            item = pg.TextItem(
+                formatter(volume[0]) + " X " + formatter(volume[1]), anchor=(0, 0.5),
+            )
+            item.setPos(x[0], interval.mid)
+            item.setParentItem(self)
+            items.append(item)
+
+        self.textItems.append(items)
+
+    def addVolumeProfile(self, data):
+        if data[0] not in [x[0] for x in self.vpData]:
+            self.vpData.append(data)
+            self.updateVolumeProfile()
+            self.addText(data)
+            return "pass"
+        else:
+            return "dup"
+
+    def removeVolumeProfile(self, index):
+        for i in self.textItems[index]:
+            self.scene().removeItem(i)
+        self.textItems.pop(index)
+
+        self.vpData.pop(index)
+        self.updateVolumeProfile()
+
+    def removeAllVolumeProfile(self):
+        for _ in range(len(self.vpData)):
+            for i in self.textItems[0]:
+                i.scene().removeItem(i)
+            self.textItems.pop(0)
+            self.vpData.pop(0)
+
+        self.updateVolumeProfile()

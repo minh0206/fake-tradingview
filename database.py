@@ -17,7 +17,7 @@ import requests
 from bitmex_websocket import BitMEXWebsocket
 from ciso8601 import parse_datetime
 
-from logger import logger
+from utils import logger
 
 
 class Database(object):
@@ -32,8 +32,6 @@ class Database(object):
         self.index = index
         self.ohlc_idx = None
         self.interval = interval
-
-        self.last_ohlc_dt = datetime.datetime.now(datetime.timezone.utc)
 
         self.ohlc_q = Queue(10)
         self.live_ohlc_q = Queue(5)

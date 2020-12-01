@@ -11,26 +11,19 @@ from logger import logger
 class VolumeProfileItem(pg.GraphicsObject):
     def __init__(self):
         super().__init__()
-        self.data = []
+        self.vpData = []
         self.picture = QtGui.QPicture()
         self.textItems = []
-        self.formatter = (
-            lambda x: str(round(x / 1e06, 2)) + "M"
-            if x >= 1e06
-            else str(round(x / 1e03, 2)) + "K"
-        )
 
     def setAlpha(self, index, value):
-        self.data[index][4] = value
-        self.updateBar()
-        # for i in self.text_items[index]:
-        #     i.setColor(pg.mkColor(200, 200, 200, value))
+        self.vpData[index][4] = value
+        self.updateVolumeProfile()
 
-    def updateBar(self):
+    def updateVolumeProfile(self):
         self.picture = QtGui.QPicture()
         p = QtGui.QPainter(self.picture)
 
-        for x, y, df, step, alpha in self.data:
+        for x, y, df, step, alpha in self.vpData:
             p.setPen(pg.mkPen(100, 100, 100, alpha))
             p.setBrush(pg.mkBrush(100, 100, 100, alpha))
             p.drawRect(QtCore.QRectF(x[0], y[1], x[1] - x[0], y[0] - y[1]))
@@ -51,11 +44,13 @@ class VolumeProfileItem(pg.GraphicsObject):
         self.update()
 
     def addText(self, data):
+        formatter = lambda x: str(round(x / 1e06, 2)) + "M"
+
         x, y, df, _, _ = data
 
         total = df.sum(axis=0)
         item = pg.TextItem(
-            "Total: " + self.formatter(total[0]) + " X " + self.formatter(total[1])
+            "Total: " + formatter(total[0]) + " X " + formatter(total[1])
         )
         item.setPos(x[0], y[0])
         item.setParentItem(self)
@@ -63,8 +58,7 @@ class VolumeProfileItem(pg.GraphicsObject):
         items = [item]
         for interval, volume in zip(df.index, df.to_numpy()):
             item = pg.TextItem(
-                self.formatter(volume[0]) + " X " + self.formatter(volume[1]),
-                anchor=(0, 0.5),
+                formatter(volume[0]) + " X " + formatter(volume[1]), anchor=(0, 0.5),
             )
             item.setPos(x[0], interval.mid)
             item.setParentItem(self)
@@ -72,31 +66,31 @@ class VolumeProfileItem(pg.GraphicsObject):
 
         self.textItems.append(items)
 
-    def addData(self, data):
-        if data[0] not in [x[0] for x in self.data]:
-            self.data.append(data)
-            self.updateBar()
+    def addVolumeProfile(self, data):
+        if data[0] not in [x[0] for x in self.vpData]:
+            self.vpData.append(data)
+            self.updateVolumeProfile()
             self.addText(data)
             return "pass"
         else:
             return "dup"
 
-    def removeData(self, index):
+    def removeVolumeProfile(self, index):
         for i in self.textItems[index]:
             self.scene().removeItem(i)
         self.textItems.pop(index)
 
-        self.data.pop(index)
-        self.updateBar()
+        self.vpData.pop(index)
+        self.updateVolumeProfile()
 
-    def removeAll(self):
-        for _ in range(len(self.data)):
+    def removeAllVolumeProfile(self):
+        for _ in range(len(self.vpData)):
             for i in self.textItems[0]:
                 i.scene().removeItem(i)
             self.textItems.pop(0)
-            self.data.pop(0)
+            self.vpData.pop(0)
 
-        self.updateBar()
+        self.updateVolumeProfile()
 
     def paint(self, p, *args):
         self.picture.play(p)
