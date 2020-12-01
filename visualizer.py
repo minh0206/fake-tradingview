@@ -6,9 +6,9 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 
-from CandlestickItem import CandlestickItem
+from candlestickItem import CandlestickItem
 from logger import logger
-from VolumeProfileItem import VolumeProfileItem
+from volumeProfileItem import VolumeProfileItem
 
 
 class Visualizer(pg.PlotWidget):
@@ -18,7 +18,6 @@ class Visualizer(pg.PlotWidget):
         super().__init__(parent, axisItems={"bottom": pg.DateAxisItem()})
 
         self.db = parent.db
-        # self.threadpool = QtCore.QThreadPool()
 
         self.totalBars = 500
         self.plotting = False
@@ -47,7 +46,6 @@ class Visualizer(pg.PlotWidget):
 
     def plot(self, index=None, interval=None, fetch=0, live=False, resetLim=False):
         worker = self.Worker(self.plot_thread, index, interval, fetch, live, resetLim)
-        # self.threadpool.start(worker)
         QtCore.QThreadPool.globalInstance().start(worker)
         # self.plot_thread(index, interval, fetch, live, reset_lim)
 
