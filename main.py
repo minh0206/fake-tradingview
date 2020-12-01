@@ -5,7 +5,7 @@ import time
 import numpy as np
 from PyQt5 import QtCore, QtWidgets
 
-from Database import Database
+from database import Database
 from logger import logger
 from Visualizer import Visualizer
 from VolumeProfile import VolumeProfile
