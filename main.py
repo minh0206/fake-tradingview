@@ -7,8 +7,8 @@ from PyQt5 import QtCore, QtWidgets
 
 from database import Database
 from logger import logger
-from Visualizer import Visualizer
-from VolumeProfile import VolumeProfile
+from visualizer import Visualizer
+from volumeProfile import VolumeProfile
 
 
 class ApplicationWindow(QtWidgets.QMainWindow):
