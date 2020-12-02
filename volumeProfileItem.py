@@ -11,19 +11,19 @@ from logger import logger
 class VolumeProfileItem(pg.GraphicsObject):
     def __init__(self):
         super().__init__()
-        self.vpData = []
+        self.data = []
         self.picture = QtGui.QPicture()
         self.textItems = []
 
     def setAlpha(self, index, value):
-        self.vpData[index][4] = value
-        self.updateVolumeProfile()
+        self.data[index][4] = value
+        self.updateData()
 
-    def updateVolumeProfile(self):
+    def updateData(self):
         self.picture = QtGui.QPicture()
         p = QtGui.QPainter(self.picture)
 
-        for x, y, df, step, alpha in self.vpData:
+        for x, y, df, step, alpha in self.data:
             p.setPen(pg.mkPen(100, 100, 100, alpha))
             p.setBrush(pg.mkBrush(100, 100, 100, alpha))
             p.drawRect(QtCore.QRectF(x[0], y[1], x[1] - x[0], y[0] - y[1]))
@@ -66,31 +66,31 @@ class VolumeProfileItem(pg.GraphicsObject):
 
         self.textItems.append(items)
 
-    def addVolumeProfile(self, data):
-        if data[0] not in [x[0] for x in self.vpData]:
-            self.vpData.append(data)
-            self.updateVolumeProfile()
+    def addData(self, data):
+        if data[0] not in [x[0] for x in self.data]:
+            self.data.append(data)
+            self.updateData()
             self.addText(data)
             return "pass"
         else:
             return "dup"
 
-    def removeVolumeProfile(self, index):
+    def removeData(self, index):
         for i in self.textItems[index]:
             self.scene().removeItem(i)
         self.textItems.pop(index)
 
-        self.vpData.pop(index)
-        self.updateVolumeProfile()
+        self.data.pop(index)
+        self.updateData()
 
-    def removeAllVolumeProfile(self):
-        for _ in range(len(self.vpData)):
+    def removeAll(self):
+        for _ in range(len(self.data)):
             for i in self.textItems[0]:
                 i.scene().removeItem(i)
             self.textItems.pop(0)
-            self.vpData.pop(0)
+            self.data.pop(0)
 
-        self.updateVolumeProfile()
+        self.updateData()
 
     def paint(self, p, *args):
         self.picture.play(p)
