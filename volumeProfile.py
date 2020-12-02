@@ -1,6 +1,4 @@
 import logging
-
-from dateutil.tz import tzlocal
 from PyQt5 import QtWidgets, QtCore
 
 from utils import logger
@@ -25,24 +23,11 @@ class VolumeProfile(QtWidgets.QWidget):
 
         self.setNum(list(map(str, range(5, 35, 5))))
 
-        self.candlestick = parent.visualizer.candlestick
-        # onPlot.connect(self.updateDate)
+        self.volumeProfile = parent.visualizer.volumeProfile
+        parent.visualizer.candlestick.onUpdate.connect(self.updateDate)
 
     def updateDate(self):
-        # interval = self.parent().db.ohlc_idx.freqstr
-        indexDt = (
-            self.parent()
-            .visualizer.db.ohlc_idx.tz_convert(tzlocal())
-            .strftime("%d %b '%y  %H:%M:%S")
-        )
-
-        # if interval.find("S") != -1:
-        #     datetime_format = lambda datetime: datetime.strftime("%d %b '%y  %H:%M:%S")
-        # elif interval.find("T") != -1 or interval.find("H") != -1:
-        #     datetime_format = lambda datetime: datetime.strftime("%d %b '%y  %H:%M")
-        # else:
-        #     datetime_format = lambda datetime: datetime.strftime("%d %b '%y")
-        # date = list(map(datetime_format, index_dt))
+        indexDt = self.volumeProfile.getDate()
 
         self.ui.cbStart.clear()
         self.ui.cbStart.addItems(indexDt)
@@ -55,37 +40,28 @@ class VolumeProfile(QtWidgets.QWidget):
     def setNum(self, num):
         self.ui.cbNum.clear()
         self.ui.cbNum.addItems(num)
+    
+    def deleteAll(self):
+        self.ui.table.clearContents()
+        self.ui.table.setRowCount(0)
 
-    def addVolumeProfile(self, start, end, num):
-        ohlcIdx = self.parent().db.ohlc_idx
-        startDt = ohlcIdx[start]
-        endDt = ohlcIdx[end]
-        freq = ohlcIdx[1] - ohlcIdx[0]
-
-        if start < end:
-            x = (startDt.value / 1e09, endDt.value / 1e09)
-            df, y, step = self.parent().db.volume_on_price(startDt, endDt + freq, num)
-            data = [x, y, df, step, 127]
-
-            return self.parent().visualizer.volumeProfile.addData(data)
-        else:
-            return "fail"
+        self.volumeProfile.removeAll()
 
     @QtCore.pyqtSlot()
     def btnAddClicked(self):
         start = self.ui.cbStart.currentIndex()
         end = self.ui.cbEnd.currentIndex()
         num = int(self.ui.cbNum.currentText())
-        result = self.addVolumeProfile(start, end, num)
+        result = self.volumeProfile.addData(start, end, num)
 
-        if result == "pass":
+        if result:
             row = self.ui.table.rowCount()
             self.ui.table.insertRow(row)
 
             slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            slider.setMinimum(10)
+            slider.setMinimum(25)
             slider.setMaximum(255)
-            slider.setValue(128)
+            slider.setValue(127)
             slider.valueChanged.connect(self.sliderHandle)
 
             btn = QtWidgets.QPushButton("Delete")
@@ -100,13 +76,9 @@ class VolumeProfile(QtWidgets.QWidget):
             self.ui.table.setCellWidget(row, 2, slider)
             self.ui.table.setCellWidget(row, 3, btn)
 
-        elif result == "fail":
+        else:
             QtWidgets.QMessageBox.critical(
-                self, "Wrong date", "End date must be greater than start date"
-            )
-        elif result == "dup":
-            QtWidgets.QMessageBox.critical(
-                self, "Date existed", "New value is a duplicate"
+                self, "Wrong date", "Invalid or duplicate date"
             )
 
     @QtCore.pyqtSlot()
@@ -116,23 +88,18 @@ class VolumeProfile(QtWidgets.QWidget):
         if index.isValid():
             row = index.row()
             self.ui.table.removeRow(row)
-            self.parent().visualizer.volumeProfile.removeData(row)
-            self.parent().visualizer.candlestick.update()
+            self.volumeProfile.removeData(row)
 
     @QtCore.pyqtSlot(int)
     def sliderHandle(self, value):
         slider = self.sender()
         index = self.ui.table.indexAt(slider.pos())
         if index.isValid():
-            self.parent().visualizer.volumeProfile.setAlpha(index.row(), value)
+            self.volumeProfile.setAlpha(index.row(), value)
 
     @QtCore.pyqtSlot()
     def btnDeleteAllClicked(self):
-        self.ui.table.clearContents()
-        self.ui.table.setRowCount(0)
-
-        self.parent().visualizer.volumeProfile.removeAll()
-        self.parent().visualizer.candlestick.update()
+        self.deleteAll()
 
 
 class Ui_VolumeProfile(object):

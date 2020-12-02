@@ -1,5 +1,5 @@
 import datetime
-
+from time import time
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
@@ -8,7 +8,7 @@ from utils import Worker, logger
 
 
 class CandlestickItem(pg.GraphicsObject):
-    onPlot = QtCore.pyqtSignal()
+    onUpdate = QtCore.pyqtSignal()
 
     def __init__(self, db):
         super().__init__()
@@ -22,6 +22,7 @@ class CandlestickItem(pg.GraphicsObject):
         self.limit = 500
         self.totalBars = 500
         self.plotting = False
+        self.dateFormat = None
         self._boundingRect = None
         self._boundsCache = [None, None]
 
@@ -42,43 +43,38 @@ class CandlestickItem(pg.GraphicsObject):
         self.hTxt.setParentItem(self)
 
         # Connect signal
-        self.onPlot.connect(self.updatePlotStatus)
+        self.onUpdate.connect(self.updatePlotStatus)
 
     def plot(self, index=None, interval=None, fetch=0, live=False, resetLim=False):
         worker = Worker(self.plot_thread, index, interval, fetch, live, resetLim)
         QtCore.QThreadPool.globalInstance().start(worker)
-        # self.plot_thread(index, interval, fetch, live, reset_lim)
+        # self.plot_thread(index, interval, fetch, live, resetLim)
 
     def plot_thread(
         self, index=None, interval=None, fetch=0, live=False, resetLim=False
     ):
         if resetLim:
-            if interval[-1] == "S":
-                self.totalBars = 10000
-            elif interval[-1] == "T":
-                self.totalBars = 100
-            elif interval[-1] == "H":
-                self.totalBars = 50
+            self.totalBars = 500
 
         if fetch:
             self.totalBars += fetch
 
-        # start = time.time()
+        start = time()
         ohlc = self.db.ohlc(self.totalBars, live, index, interval)
-        # logger.debug(
-        #     "OHLC | Time: {:.3} | Len: {} | Queue: {}".format(
-        #         time.time() - start, len(ohlc), self.db.ohlc_q.qsize()
-        #     )
-        # )
+        logger.debug(
+            "OHLC | Time: {:.3} | Len: {} | Queue: {}".format(
+                time() - start, len(ohlc), self.db.ohlc_q.qsize()
+            )
+        )
 
         if len(ohlc):
             self.setOHLC(ohlc)
             self.dataBounds(1)
 
         if resetLim:
-            self.enableAutoRange()
+            self.getViewWidget().enableAutoRange(x=False, y=True)
 
-        self.onPlot.emit()
+        self.onUpdate.emit()
 
     def updatePlotStatus(self):
         self.plotting = False
@@ -88,6 +84,7 @@ class CandlestickItem(pg.GraphicsObject):
 
         self.anchor = ohlc.index[0]
         self.step = ohlc.index[1] - ohlc.index[0]
+        self.dateFormat = self.db.getDateFormat()
 
         self.ohlc = ohlc.dropna().reset_index().to_numpy()
         self.updateOHLC()
@@ -263,9 +260,9 @@ class CandlestickItem(pg.GraphicsObject):
         self.prepareGeometryChange()
 
     def viewRangeChanged(self):
-        # worker = Worker(self.updateOHLC)
-        # QtCore.QThreadPool.globalInstance().start(worker)
-        self.updateOHLC()
+        worker = Worker(self.updateOHLC)
+        QtCore.QThreadPool.globalInstance().start(worker)
+        # self.updateOHLC()
 
     def onMouseMoved(self, pos):
         mouse_point = self.getViewBox().mapSceneToView(pos)
@@ -278,7 +275,7 @@ class CandlestickItem(pg.GraphicsObject):
         self.vLine.setPos(timestamp)
         self.hLine.setPos(mouse_point.y())
 
-        self.vTxt.setText(dt.strftime("%d %b '%y  %H:%M:%S"))
+        self.vTxt.setText(dt.strftime(self.dateFormat))
         self.hTxt.setText("{:.2f}".format(mouse_point.y()))
 
         self.vTxt.setPos(timestamp, ylim[0] + 0.05 * (ylim[1] - ylim[0]))

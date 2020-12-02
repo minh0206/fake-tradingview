@@ -9,17 +9,23 @@ from logger import logger
 
 
 class VolumeProfileItem(pg.GraphicsObject):
-    def __init__(self):
+    onUpdate = QtCore.pyqtSignal()
+
+    def __init__(self, db):
         super().__init__()
+        self.db = db
         self.data = []
         self.picture = QtGui.QPicture()
         self.textItems = []
 
+    def getDate(self):
+        return self.db.getDate()
+
     def setAlpha(self, index, value):
         self.data[index][4] = value
-        self.updateData()
+        self.setData()
 
-    def updateData(self):
+    def setData(self):
         self.picture = QtGui.QPicture()
         p = QtGui.QPainter(self.picture)
 
@@ -66,14 +72,23 @@ class VolumeProfileItem(pg.GraphicsObject):
 
         self.textItems.append(items)
 
-    def addData(self, data):
-        if data[0] not in [x[0] for x in self.data]:
+    def addData(self, start, end, num):
+        ohlcIdx = self.db.ohlc_idx
+        startDt = ohlcIdx[start]
+        endDt = ohlcIdx[end]
+        freq = ohlcIdx[1] - ohlcIdx[0]
+
+        if (start < end) and ([start, end] not in [data[0] for data in self.data]):
+            x = (startDt.value / 1e09, endDt.value / 1e09)
+            df, y, step = self.db.volumeOnPrice(startDt, endDt + freq, num)
+            data = [x, y, df, step, 127]
+
             self.data.append(data)
-            self.updateData()
             self.addText(data)
-            return "pass"
+            self.setData()
+            return True
         else:
-            return "dup"
+            return False
 
     def removeData(self, index):
         for i in self.textItems[index]:
@@ -81,7 +96,7 @@ class VolumeProfileItem(pg.GraphicsObject):
         self.textItems.pop(index)
 
         self.data.pop(index)
-        self.updateData()
+        self.setData()
 
     def removeAll(self):
         for _ in range(len(self.data)):
@@ -90,10 +105,11 @@ class VolumeProfileItem(pg.GraphicsObject):
             self.textItems.pop(0)
             self.data.pop(0)
 
-        self.updateData()
+        self.setData()
 
     def paint(self, p, *args):
         self.picture.play(p)
+        self.onUpdate.emit()
 
     def boundingRect(self):
         return QtCore.QRectF(self.picture.boundingRect())

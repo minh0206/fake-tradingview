@@ -15,25 +15,18 @@ from volumeProfileItem import VolumeProfileItem
 class Visualizer(DockArea):
     def __init__(self, parent):
         super().__init__()
-
         self.db = parent.db
 
         # Candlestick init
         self.candlestick = CandlestickItem(self.db)
+        self.volumeProfile = VolumeProfileItem(self.db)
+        self.volumeProfile.onUpdate.connect(self.candlestick.update)
 
         self.candlestickWidget = pg.PlotWidget(
             self, axisItems={"bottom": pg.DateAxisItem()}
         )
         self.candlestickWidget.addItem(self.candlestick)
-
-        self.d = Dock("ohlc", widget=self.candlestickWidget)
-        self.addDock(self.d)
-
-        # Volume profile init
-        # self.volumeProfile = VolumeProfileItem()
-        # self.addItem(self.volumeProfile)
-
-        # PlotItem init
+        self.candlestickWidget.addItem(self.volumeProfile)
         self.candlestickWidget.setMouseEnabled(x=True, y=False)
         self.candlestickWidget.enableAutoRange(x=False, y=True)
         self.candlestickWidget.setAutoVisible(x=False, y=True)
@@ -44,3 +37,16 @@ class Visualizer(DockArea):
             self.candlestick.onMouseMoved
         )
 
+        # Add dock
+        self.d = Dock("OHLC", widget=self.candlestickWidget)
+        self.addDock(self.d)
+
+    def updatePlot(self, index=None, interval=None, live=False, resetLim=False):
+        if index is not None:
+            self.candlestick.plot(index=index, live=True, resetLim=True)
+        if interval is not None:
+            self.candlestick.plot(interval=interval, live=True, resetLim=True)
+        if resetLim:
+            self.candlestick.plot(resetLim=True)
+        if live:
+            self.candlestick.plot(live=True)

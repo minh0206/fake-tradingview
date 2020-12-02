@@ -16,6 +16,7 @@ import pandas as pd
 import requests
 from bitmex_websocket import BitMEXWebsocket
 from ciso8601 import parse_datetime
+from dateutil.tz import tzlocal
 
 from utils import logger
 
@@ -42,10 +43,27 @@ class Database(object):
         if not os.path.exists("data"):
             os.mkdir("data")
 
-        self.update_historical_data()
-        self.update_live_data()
+        self.updateHistoricalData()
+        self.updateLiveData()
 
-    def download_data(self, date, temp_dir):
+    def getDateFormat(self):
+        if self.interval.find("S") != -1:
+            dtFormat = "%d %b '%y  %H:%M:%S"
+        elif self.interval.find("T") != -1 or self.interval.find("H") != -1:
+            dtFormat = "%d %b '%y  %H:%M"
+        else:
+            dtFormat = "%d %b '%y"
+
+        return dtFormat
+
+    def getDate(self):
+        dtFormat = self.getDateFormat()
+        fn = lambda dt: dt.strftime(dtFormat)
+        date = list(map(fn, self.ohlc_idx.tz_convert(tzlocal())))
+
+        return date
+
+    def downloadData(self, date, temp_dir):
         url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
             date
         )
@@ -73,7 +91,7 @@ class Database(object):
         df.timestamp = df.timestamp.apply(parser)
         df.to_csv("data/" + file_name, index=False)
 
-    def update_historical_data(self):
+    def updateHistoricalData(self):
         self.ohlc_info_q.put([self.symbols[self.index], self.interval])
 
         Process(
@@ -81,10 +99,10 @@ class Database(object):
         ).start()
 
     def _update(self, ohlc_info_q, ohlc_q):
-        self.update_historical_data_process()
-        self.ohlc_process(ohlc_info_q, ohlc_q)
+        self.updateHistoricalDataProcess()
+        self.ohlcProcess(ohlc_info_q, ohlc_q)
 
-    def ohlc_process(self, ohlc_info_q, ohlc_q):
+    def ohlcProcess(self, ohlc_info_q, ohlc_q):
         logger.info("Start OHLC process")
         while True:
             try:
@@ -107,7 +125,7 @@ class Database(object):
                 ohlc_q.put([csv, ohlc])
                 # logger.debug("Done reading")
 
-    def update_historical_data_process(self):
+    def updateHistoricalDataProcess(self):
         logger.info("Start update history process")
         file_name = os.listdir("data")
 
@@ -122,20 +140,20 @@ class Database(object):
             for n in range(1, int((end_dt.date() - start_dt.date()).days)):
                 date = start_dt + datetime.timedelta(n)
                 logger.debug("Downloading {}".format(date))
-                self.download_data(date.strftime("%Y%m%d"), temp_dir)
+                self.downloadData(date.strftime("%Y%m%d"), temp_dir)
 
         logger.info("Done update history process")
 
-    def update_live_data(self):
+    def updateLiveData(self):
         self.live_info_q.put([self.symbols[self.index], self.interval])
 
         Process(
-            target=self.update_live_data_process,
+            target=self.updateLiveDataProcess,
             args=(self.live_info_q, self.live_ohlc_q),
             daemon=True,
         ).start()
 
-    def update_live_data_process(self, live_info_q, live_ohlc_q):
+    def updateLiveDataProcess(self, live_info_q, live_ohlc_q):
         client = bitmex.bitmex(test=False)
         live = False
 
@@ -209,8 +227,12 @@ class Database(object):
                 live = True
 
             logger.info(
-                "{} | {} {} {} | Live queue {}".format(
-                    s, symbol, interval, last_dt.astimezone(), self.live_ohlc_q.qsize()
+                "{} | {} {} {:.19} | Live queue {}".format(
+                    s,
+                    symbol,
+                    interval,
+                    str(last_dt.astimezone()),
+                    self.live_ohlc_q.qsize(),
                 )
             )
 
@@ -264,7 +286,7 @@ class Database(object):
 
         return ohlc
 
-    def volume_on_price(self, start_dt, end_dt, num):
+    def volumeOnPrice(self, start_dt, end_dt, num):
         live_df, _ = self.live_ohlc_q.get()
 
         df = self.df[self.df["symbol"] == self.symbols[self.index]]

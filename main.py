@@ -46,19 +46,16 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(int)
     def cbSymbolSelect(self, i):
-        self.visualizer.plot(index=i, resetLim=True)
+        self.visualizer.updatePlot(index=i)
+        self.volumeProfile.deleteAll()
 
     @QtCore.pyqtSlot(int)
     def cbIntervalSelect(self, i):
         text = self.ui.cbInterval.currentText()
 
-        if i == self.previousIndex:
-            self.visualizer.plot(resetLim=True)
-            self.volumeProfile.vp_data.clear()
-            self.volumeProfile.update(0)
-        elif text == "-----":
+        if text == "-----":
             self.ui.cbInterval.setCurrentIndex(self.previousIndex)
-        else:
+        elif i != self.previousIndex:
             self.previousIndex = i
             if text[-1] == "s":
                 text = text.replace("s", "S")
@@ -66,7 +63,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 text = text.replace("m", "T")
             elif text[-1] == "h":
                 text = text.replace("h", "H")
-            self.visualizer.plot(interval=text, resetLim=True)
+            self.visualizer.updatePlot(interval=text)
 
         self.ui.centralwidget.setFocus()
 
@@ -74,7 +71,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def cbRefreshSelect(self, i):
         if i == 0:
             self.timer.stop()
-            self.visualizer.plot(live=True)
+            self.visualizer.updatePlot(live=True)
             self.ui.statusbar.showMessage("Refresh", 1500)
         else:
             text = self.ui.cbRefresh.currentText()
@@ -84,7 +81,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def updatePlot(self):
-        self.visualizer.plot(live=True)
+        self.visualizer.updatePlot(live=True)
 
 
 class Ui_MainWindow(object):
