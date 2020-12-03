@@ -46,7 +46,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(int)
     def cbSymbolSelect(self, i):
-        self.visualizer.updatePlot(index=i)
+        self.visualizer.setIndex(i)
         self.volumeProfile.deleteAll()
 
     @QtCore.pyqtSlot(int)
@@ -58,12 +58,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         elif i != self.previousIndex:
             self.previousIndex = i
             if text[-1] == "s":
-                text = text.replace("s", "S")
+                interval = text.replace("s", "S")
             elif text[-1] == "m":
-                text = text.replace("m", "T")
+                interval = text.replace("m", "T")
             elif text[-1] == "h":
-                text = text.replace("h", "H")
-            self.visualizer.updatePlot(interval=text)
+                interval = text.replace("h", "H")
+            self.visualizer.setInterval(interval)
 
         self.ui.centralwidget.setFocus()
 

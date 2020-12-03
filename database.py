@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 import os
 import shutil
+import tempfile
 from math import ceil, floor
 from multiprocessing import Process, Queue
 from time import sleep, time
@@ -36,13 +37,13 @@ class Database(object):
         self.live_ohlc_q = Queue(5)
 
         self.ohlc_info_q = Queue(1)
-        self.live_info_q = Queue(1)
+        self.live_info_q = Queue(10)
 
         if not os.path.exists("data"):
             os.mkdir("data")
 
         self.updateHistoricalData()
-        self.updateLiveData()
+        # self.updateLiveData()
 
     def getDateFormat(self):
         if self.interval.find("S") != -1:
@@ -61,20 +62,19 @@ class Database(object):
 
         return date
 
-    def downloadData(self, date):
-        # url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
-        #     date
-        # )
+    def downloadData(self, date, temp_dir):
+        url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
+            date
+        )
+
+        #################################################################################
         # fileName = url.split("/")[-1]
 
         # with requests.get(url, stream=True) as r:
         #     if r.ok:
         #         with open(os.path.join("data", fileName), "wb") as f:
         #             shutil.copyfileobj(r.raw, f)
-
-        url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
-            date
-        )
+        #################################################################################
 
         file_name_gz = url.split("/")[-1]
         file_name = file_name_gz[:-3]
@@ -107,11 +107,13 @@ class Database(object):
         self.df, self.ohlc_df = self.ohlc_q.get()
 
     def _update(self, ohlc_info_q, ohlc_q):
-        self.updateHistoricalDataProcess()
+        # self.updateHistoricalDataProcess()
         self.readDataProcess(ohlc_info_q, ohlc_q)
 
     def readDataProcess(self, ohlc_info_q, ohlc_q):
-        # logger.debug("Start reading data")
+        logger.debug("Start reading data")
+
+        #################################################################################
         # while True:
         #     try:
         #         symbol, interval = ohlc_info_q.get_nowait()
@@ -138,8 +140,8 @@ class Database(object):
         #         ohlc = df.price.resample(interval).ohlc()
 
         #         ohlc_q.put([csv, ohlc])
+        #################################################################################
 
-        logger.info("Start OHLC process")
         while True:
             try:
                 symbol, interval = ohlc_info_q.get_nowait()
@@ -148,7 +150,7 @@ class Database(object):
             else:
                 if symbol != None or interval != None:
                     files = sorted(glob.glob("data/*"), reverse=True)
-                    logger.debug("---Start {} {}".format(symbol, interval))
+                    logger.debug("--- Start {} {} ---".format(symbol, interval))
                     while not ohlc_q.empty():
                         ohlc_q.get()
 
@@ -159,10 +161,11 @@ class Database(object):
                 ).query("symbol == '{}'".format(symbol))
                 ohlc = csv.price.resample(interval).ohlc()
                 ohlc_q.put([csv, ohlc])
-                # logger.debug("Done reading")
 
     def updateHistoricalDataProcess(self):
-        # logger.debug("Start update history process")
+        logger.debug("Start updating history")
+
+        #################################################################################
         # file_name = os.listdir("data")
 
         # if file_name:
@@ -176,26 +179,24 @@ class Database(object):
         #     date = start_dt + datetime.timedelta(n)
         #     logger.debug("Downloading {}".format(date.date()))
         #     self.downloadData(date.strftime("%Y%m%d"))
+        #################################################################################
 
-        # logger.debug("Done update history process")
-
-        logger.info("Start update history process")
         file_name = os.listdir("data")
 
         if file_name:
             start_dt = parse_datetime(file_name[-1][:-4])
         else:
-            start_dt = datetime.datetime(2020, 11, 1)
+            start_dt = datetime.datetime(2019, 12, 31)
 
         end_dt = datetime.datetime.now()
 
         with tempfile.TemporaryDirectory(dir=os.getcwd()) as temp_dir:
             for n in range(1, int((end_dt.date() - start_dt.date()).days)):
                 date = start_dt + datetime.timedelta(n)
-                logger.debug("Downloading {}".format(date))
+                logger.debug("Downloading {}".format(date.date()))
                 self.downloadData(date.strftime("%Y%m%d"), temp_dir)
 
-        logger.info("Done update history process")
+        logger.debug("Done updating history")
 
     def updateLiveData(self):
         self.live_info_q.put([self.symbols[self.index], self.interval])
@@ -208,7 +209,6 @@ class Database(object):
 
     def updateLiveDataProcess(self, live_info_q, live_ohlc_q):
         client = bitmex.bitmex(test=False)
-        live = False
 
         while True:
             try:
@@ -219,9 +219,6 @@ class Database(object):
                 if symbol != None:
                     i = 0
                     df = pd.DataFrame()
-                    ws = BitMEXWebsocket(
-                        endpoint="https://www.bitmex.com/api/v1", symbol=symbol,
-                    )
 
                     last_dt = datetime.datetime.now(datetime.timezone.utc).replace(
                         hour=0, minute=0, second=0, microsecond=0
@@ -247,15 +244,10 @@ class Database(object):
                                 last_dt = temp_dt
                                 df = temp_df
 
-            if live:
-                s = "Live"
-                result = ws.recent_trades()
-            else:
-                s = "Updating"
-                sleep(2)
-                result = client.Trade.Trade_get(
-                    symbol=symbol, startTime=last_dt, count=1000
-                ).result()[0]
+            sleep(2)
+            result = client.Trade.Trade_get(
+                symbol=symbol, startTime=last_dt, count=1000
+            ).result()[0]
 
             temp_df = pd.DataFrame.from_records(
                 result,
@@ -275,13 +267,9 @@ class Database(object):
             )
 
             last_dt = temp_df.index[-1].to_pydatetime()
-            live_dt = parse_datetime(ws.recent_trades()[-1]["timestamp"])
-            if last_dt > live_dt:
-                live = True
 
             logger.debug(
-                "{} | {} {} {:.19} | Live queue {}".format(
-                    s,
+                "Updating | {} {} {:.19} | Live queue {}".format(
                     symbol,
                     interval,
                     str(last_dt.astimezone()),
@@ -319,13 +307,13 @@ class Database(object):
             liveOhlc = self.live_ohlc_df[liveMask]
 
             data = pd.concat([ohlc, liveOhlc])
-            data.index = data.index.astype("int64") // 1e09
-            return self.ohlc_df.index[0].timestamp(), data.reset_index().to_numpy()
-
+            # data.index = data.index.astype("int64") // 1e09
+            # return self.ohlc_df.index[0].timestamp(), data.reset_index().to_numpy()
         else:
             data = pd.concat([self.ohlc_df, self.live_ohlc_df])
-            data.index = data.index.astype("int64") // 1e09
-            return data.reset_index().to_numpy()
+
+        data.index = data.index.astype("int64") // 1e09
+        return self.ohlc_df.index[0].timestamp(), data.reset_index().to_numpy()
 
     def setIndex(self, index):
         if index != self.index:
@@ -346,16 +334,16 @@ class Database(object):
         self.live_df = pd.DataFrame()
         self.live_ohlc_df = pd.DataFrame()
 
-        while True:
-            live_df, live_ohlc_df = self.live_ohlc_q.get()
-            freq = live_ohlc_df.index.freq
-            if (
-                all(live_df["symbol"] == self.symbols[self.index])
-                and self.interval == str(freq.n) + freq.name
-            ):
-                self.live_df = pd.concat([live_df, self.live_df])
-                self.live_ohlc_df = pd.concat([live_ohlc_df, self.live_ohlc_df])
-                break
+        # while True:
+        #     live_df, live_ohlc_df = self.live_ohlc_q.get()
+        #     freq = live_ohlc_df.index.freq
+        #     if (
+        #         all(live_df["symbol"] == self.symbols[self.index])
+        #         and self.interval == str(freq.n) + freq.name
+        #     ):
+        #         self.live_df = pd.concat([live_df, self.live_df])
+        #         self.live_ohlc_df = pd.concat([live_ohlc_df, self.live_ohlc_df])
+        #         break
 
         while True:
             df, ohlc_df = self.ohlc_q.get()
@@ -370,10 +358,11 @@ class Database(object):
 
     def volumeOnPrice(self, startDt, endDt, num):
         live_df, _ = self.live_ohlc_q.get()
+        live_df = live_df[((live_df.index >= startDt) & (live_df.index <= endDt))]
 
         df = self.df[self.df["symbol"] == self.symbols[self.index]]
-        df = pd.concat([df, live_df])
         df = df[((df.index >= startDt) & (df.index <= endDt))]
+        df = pd.concat([df, live_df])
 
         price_min = df.price.min()
         price_max = df.price.max()
@@ -404,8 +393,8 @@ if __name__ == "__main__":
     # db.getData(start, end)
     # db.setIndex(1)
 
-    while True:
-        pass
+    # while True:
+    #     pass
     #     sleep(5)
     #     print(db.df.info(memory_usage="deep"))
 

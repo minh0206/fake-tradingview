@@ -16,27 +16,18 @@ class CandlestickItem(pg.GraphicsObject):
         super().__init__()
         # Candlestick
         self.db = db
-        self.ohlc = None
-        self.data = None
-
-        self.anchor = None
         self.step = None
-
+        self.anchor, self.data = self.db.getData()
+        self.dateFormat = self.db.getDateFormat()
         self.path = None
         self.limit = 500
-        # self.totalBars = 500
         self.plotting = False
-        self.dateFormat = self.db.getDateFormat()
 
         self._boundingRect = None
         self._boundsCache = [None, None]
 
         # Data init
-        # self.updateOHLC()
-        # self.dataBounds(1)
-        data = self.db.getData()
-        self.setData(data)
-        # self.getViewWidget().enableAutoRange(x=False, y=True)
+        self.setData(self.data)
 
         # Crosshair init
         self.vLine = pg.InfiniteLine(angle=90)
@@ -68,9 +59,9 @@ class CandlestickItem(pg.GraphicsObject):
         logger.debug(
             "OHLC | Queue: {} | Time: {}".format(self.db.ohlc_q.qsize(), time() - t)
         )
-
         step = data[1][0] - data[0][0]
         ds = int((stop - start) / (step * self.limit)) + 1
+        logger.debug([ds, len(data)])
 
         if ds == 1:
             # Small enough to display with no intervention.
@@ -81,7 +72,6 @@ class CandlestickItem(pg.GraphicsObject):
             chunk = data[: (len(data) // ds) * ds]
             anchor = (data[0][0] - self.anchor) / step
             offset = int(anchor % ds)
-            logger.debug([ds, offset])
             if offset:
                 chunk = chunk[ds - offset : -offset]
             visible = np.zeros((len(chunk) // ds, 5))
@@ -90,33 +80,54 @@ class CandlestickItem(pg.GraphicsObject):
             visible[:, 0] = chunk[: (len(chunk) // ds) * ds : ds, 0]
 
             # Reshape open
-            visible[:, 1] = chunk[: (len(chunk) // ds) * ds : ds, 1]
+            _open = chunk[: (len(chunk) // ds) * ds, 1].reshape(len(chunk) // ds, ds)
+            if np.isnan(_open).any():
+                visible[:, 1] = self.getFirstNoNan(_open)
+            else:
+                visible[:, 1] = chunk[: (len(chunk) // ds) * ds : ds, 1]
 
             # Reshape high
-            high = (
-                chunk[: (len(chunk) // ds) * ds, 2]
-                .reshape(len(chunk) // ds, ds)
-                .max(axis=1)
-            )
-            visible[:, 2] = high
+            high = chunk[: (len(chunk) // ds) * ds, 2].reshape(len(chunk) // ds, ds)
+            if np.isnan(high).any():
+                a = 1
+                visible[:, 2] = high.max(axis=1)
+            else:
+                visible[:, 2] = high.max(axis=1)
 
             # Reshape low
-            low = (
-                chunk[: (len(chunk) // ds) * ds, 3]
-                .reshape(len(chunk) // ds, ds)
-                .min(axis=1)
-            )
-            visible[:, 3] = low
+            low = chunk[: (len(chunk) // ds) * ds, 3].reshape(len(chunk) // ds, ds)
+            if np.isnan(low).any():
+                a = 1
+                visible[:, 3] = low.min(axis=1)
+            else:
+                visible[:, 3] = low.min(axis=1)
 
             # Reshape close
+            close = chunk[: (len(chunk) // ds) * ds, 4].reshape(len(chunk) // ds, ds)
+            if np.isnan(close).any():
+                visible[:, 4] = self.getFirstNoNan(close)
+            else:
+                visible[:, 4] = chunk[: (len(chunk) // ds) * ds : ds, 4]
+
             visible[:, 4] = chunk[1 : (len(chunk) // ds) * ds : ds, 4]
 
         self.setData(visible)  # update the plot
         self.resetTransform()
+        self.plotting = False
+
+    def setIndex(self, index):
+        self.db.setIndex(index)
+        self.anchor, data = self.db.getData()
+        self.dateFormat = self.db.getDateFormat()
+        self.setData(data)
+
+    def setInterval(self, interval):
+        self.db.setInterval(interval)
+        self.anchor, data = self.db.getData()
+        self.dateFormat = self.db.getDateFormat()
+        self.setData(data)
 
     def setData(self, data):
-        if np.isnan(data).any():
-            a = 1
         self.data = data
 
         self.invalidateBounds()
@@ -125,7 +136,6 @@ class CandlestickItem(pg.GraphicsObject):
 
         self.path = None
         self.update()
-        self.plotting = False
         # self.onUpdate.emit()
 
     def paint(self, p, *args):
@@ -150,15 +160,19 @@ class CandlestickItem(pg.GraphicsObject):
                 data = self.data
                 self.step = data[1][0] - data[0][0]
                 w = (data[1][0] - data[0][0]) / 3.0
-                for t, o, h, l, c in data:
-                    if o > c:
-                        redBars.moveTo(QtCore.QPointF(t, l))
-                        redBars.lineTo(QtCore.QPointF(t, h))
-                        redBars.addRect(QtCore.QRectF(t - w, o, w * 2, c - o))
+                for d in data:
+                    if np.isnan(d).any():
+                        a = 1
                     else:
-                        greenBars.moveTo(QtCore.QPointF(t, l))
-                        greenBars.lineTo(QtCore.QPointF(t, h))
-                        greenBars.addRect(QtCore.QRectF(t - w, o, w * 2, c - o))
+                        t, o, h, l, c = d
+                        if o > c:
+                            redBars.moveTo(QtCore.QPointF(t, l))
+                            redBars.lineTo(QtCore.QPointF(t, h))
+                            redBars.addRect(QtCore.QRectF(t - w, o, w * 2, c - o))
+                        else:
+                            greenBars.moveTo(QtCore.QPointF(t, l))
+                            greenBars.lineTo(QtCore.QPointF(t, h))
+                            greenBars.addRect(QtCore.QRectF(t - w, o, w * 2, c - o))
 
                 self.path = [redBars, greenBars]
 
@@ -226,9 +240,9 @@ class CandlestickItem(pg.GraphicsObject):
     def viewRangeChanged(self):
         if not self.plotting:
             self.plotting = True
-            worker = Worker(self.updateOHLC)
-            QtCore.QThreadPool.globalInstance().start(worker)
-        # self.updateOHLC()
+            # worker = Worker(self.updateOHLC)
+            # QtCore.QThreadPool.globalInstance().start(worker)
+            self.updateOHLC()
 
     def onMouseMoved(self, pos):
         mouse_point = self.getViewBox().mapSceneToView(pos)
@@ -247,10 +261,12 @@ class CandlestickItem(pg.GraphicsObject):
         self.vTxt.setPos(timestamp, ylim[0] + 0.05 * (ylim[1] - ylim[0]))
         self.hTxt.setPos(xlim[1] - 0.05 * (xlim[1] - xlim[0]), mouse_point.y())
 
-        # dist = self.anchor - xlim[0]
-        # numBars = int(dist / self.step)
-        # if not self.plotting and numBars > 0:
-        # logger.debug(numBars)
-        # self.plotting = True
-        # self.updateOHLC()
+    def getFirstNoNan(self, inputArray):
+        outputArray = []
+        for array in inputArray:
+            if np.isnan(array).all():
+                outputArray.append(np.nan)
+            else:
+                outputArray.append(array[~np.isnan(array)][0])
 
+        return outputArray

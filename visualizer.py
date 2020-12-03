@@ -41,12 +41,13 @@ class Visualizer(DockArea):
         self.d = Dock("OHLC", widget=self.candlestickWidget)
         self.addDock(self.d)
 
-    def updatePlot(self, index=None, interval=None, live=False, resetLim=False):
-        if index is not None:
-            self.candlestick.plot(index=index, live=True, resetLim=True)
-        if interval is not None:
-            self.candlestick.plot(interval=interval, live=True, resetLim=True)
-        if resetLim:
-            self.candlestick.plot(resetLim=True)
-        if live:
-            self.candlestick.plot(live=True)
+    def setIndex(self, index):
+        # worker = Worker(self.candlestick.setIndex, index)
+        # QtCore.QThreadPool.globalInstance().start(worker)
+        self.candlestick.setIndex(index)
+
+    def setInterval(self, interval):
+        # worker = Worker(self.candlestick.setInterval, interval)
+        # QtCore.QThreadPool.globalInstance().start(worker)
+        self.candlestick.setInterval(interval)
+
