@@ -162,22 +162,40 @@ class Database(object):
                 # logger.debug("Done reading")
 
     def updateHistoricalDataProcess(self):
-        logger.debug("Start update history process")
+        # logger.debug("Start update history process")
+        # file_name = os.listdir("data")
+
+        # if file_name:
+        #     start_dt = parse_datetime(file_name[-1][:-7])
+        # else:
+        #     start_dt = datetime.datetime(2019, 12, 31)
+
+        # end_dt = datetime.datetime.now()
+
+        # for n in range(1, int((end_dt.date() - start_dt.date()).days)):
+        #     date = start_dt + datetime.timedelta(n)
+        #     logger.debug("Downloading {}".format(date.date()))
+        #     self.downloadData(date.strftime("%Y%m%d"))
+
+        # logger.debug("Done update history process")
+
+        logger.info("Start update history process")
         file_name = os.listdir("data")
 
         if file_name:
-            start_dt = parse_datetime(file_name[-1][:-7])
+            start_dt = parse_datetime(file_name[-1][:-4])
         else:
-            start_dt = datetime.datetime(2019, 12, 31)
+            start_dt = datetime.datetime(2020, 11, 1)
 
         end_dt = datetime.datetime.now()
 
-        for n in range(1, int((end_dt.date() - start_dt.date()).days)):
-            date = start_dt + datetime.timedelta(n)
-            logger.debug("Downloading {}".format(date.date()))
-            self.downloadData(date.strftime("%Y%m%d"))
+        with tempfile.TemporaryDirectory(dir=os.getcwd()) as temp_dir:
+            for n in range(1, int((end_dt.date() - start_dt.date()).days)):
+                date = start_dt + datetime.timedelta(n)
+                logger.debug("Downloading {}".format(date))
+                self.downloadData(date.strftime("%Y%m%d"), temp_dir)
 
-        logger.debug("Done update history process")
+        logger.info("Done update history process")
 
     def updateLiveData(self):
         self.live_info_q.put([self.symbols[self.index], self.interval])
