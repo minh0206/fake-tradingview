@@ -111,7 +111,35 @@ class Database(object):
         self.readDataProcess(ohlc_info_q, ohlc_q)
 
     def readDataProcess(self, ohlc_info_q, ohlc_q):
-        logger.debug("Start reading data")
+        # logger.debug("Start reading data")
+        # while True:
+        #     try:
+        #         symbol, interval = ohlc_info_q.get_nowait()
+        #     except Exception:
+        #         pass
+        #     else:
+        #         if symbol != None or interval != None:
+        #             files = sorted(glob.glob("data/*"), reverse=True)
+        #             logger.debug("--- Start {} {} ---".format(symbol, interval))
+        #             while not ohlc_q.empty():
+        #                 ohlc_q.get()
+
+        #     if not ohlc_q.full():
+        #         file = files.pop(0)
+        #         csv = pd.read_csv(file, compression="gzip")
+
+        #         df = csv.query("symbol == '{}'".format(symbol))[
+        #             ["timestamp", "symbol", "side", "size", "price"]
+        #         ]
+
+        #         parser = lambda dt: parse_datetime(dt.replace("D", "T") + "+00:00")
+        #         df.timestamp = pd.DatetimeIndex(df.timestamp.apply(parser))
+        #         df = df.set_index("timestamp")
+        #         ohlc = df.price.resample(interval).ohlc()
+
+        #         ohlc_q.put([csv, ohlc])
+
+        logger.info("Start OHLC process")
         while True:
             try:
                 symbol, interval = ohlc_info_q.get_nowait()
@@ -120,24 +148,18 @@ class Database(object):
             else:
                 if symbol != None or interval != None:
                     files = sorted(glob.glob("data/*"), reverse=True)
-                    logger.debug("--- Start {} {} ---".format(symbol, interval))
+                    logger.debug("---Start {} {}".format(symbol, interval))
                     while not ohlc_q.empty():
                         ohlc_q.get()
 
             if not ohlc_q.full():
                 file = files.pop(0)
-                csv = pd.read_csv(file, compression="gzip")
-
-                df = csv.query("symbol == '{}'".format(symbol))[
-                    ["timestamp", "symbol", "side", "size", "price"]
-                ]
-
-                parser = lambda dt: parse_datetime(dt.replace("D", "T") + "+00:00")
-                df.timestamp = pd.DatetimeIndex(df.timestamp.apply(parser))
-                df = df.set_index("timestamp")
-                ohlc = df.price.resample(interval).ohlc()
-
+                csv = pd.read_csv(
+                    file, index_col=0, parse_dates=True, date_parser=parse_datetime,
+                ).query("symbol == '{}'".format(symbol))
+                ohlc = csv.price.resample(interval).ohlc()
                 ohlc_q.put([csv, ohlc])
+                # logger.debug("Done reading")
 
     def updateHistoricalDataProcess(self):
         logger.debug("Start update history process")
