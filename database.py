@@ -62,15 +62,42 @@ class Database(object):
         return date
 
     def downloadData(self, date):
+        # url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
+        #     date
+        # )
+        # fileName = url.split("/")[-1]
+
+        # with requests.get(url, stream=True) as r:
+        #     if r.ok:
+        #         with open(os.path.join("data", fileName), "wb") as f:
+        #             shutil.copyfileobj(r.raw, f)
+
         url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
             date
         )
-        fileName = url.split("/")[-1]
+
+        file_name_gz = url.split("/")[-1]
+        file_name = file_name_gz[:-3]
+
+        with requests.head(url) as r:
+            if not r.ok:
+                return
 
         with requests.get(url, stream=True) as r:
-            if r.ok:
-                with open(os.path.join("data", fileName), "wb") as f:
-                    shutil.copyfileobj(r.raw, f)
+            with open(os.path.join(temp_dir, file_name_gz), "wb") as f:
+                shutil.copyfileobj(r.raw, f)
+
+            with gzip.open(os.path.join(temp_dir, file_name_gz), "rb") as f_in:
+                with open(os.path.join(temp_dir, file_name), "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+        csv = pd.read_csv(os.path.join(temp_dir, file_name))
+        query = "symbol in {}".format(self.symbols)
+        df = csv.query(query)[["timestamp", "symbol", "side", "size", "price"]]
+
+        parser = lambda dt: dt.replace("D", "T")[:-6] + "000+00:00"
+        df.timestamp = df.timestamp.apply(parser)
+        df.to_csv("data/" + file_name, index=False)
 
     def updateHistoricalData(self):
         self.ohlc_info_q.put([self.symbols[self.index], self.interval])
