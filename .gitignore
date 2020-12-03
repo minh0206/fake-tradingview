@@ -1,5 +1,6 @@
 #My files
 data/*
+data_zip/*
 *.csv
 .vscode
 
