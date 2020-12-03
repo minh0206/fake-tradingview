@@ -132,7 +132,7 @@ class Database(object):
         if file_name:
             start_dt = parse_datetime(file_name[-1][:-4])
         else:
-            start_dt = datetime.datetime(2020, 6, 1)
+            start_dt = datetime.datetime(2020, 11, 1)
 
         end_dt = datetime.datetime.now()
 
