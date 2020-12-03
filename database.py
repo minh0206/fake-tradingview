@@ -240,35 +240,71 @@ class Database(object):
             if i % 5 == 0:
                 df.to_csv(file_name)
 
-    def ohlc(self, total_bars, fetch_live=False, index=None, interval=None):
-        if (interval is not None) or (index is not None):
-            if index != self.index and index is not None:
-                self.index = index
-            if interval != self.interval and interval is not None:
-                self.interval = interval
+    def getData(self, startTs=None, endTs=None, fetchLive=False):
+        if startTs is not None:
+            startDt = datetime.datetime.fromtimestamp(
+                int(startTs), tz=datetime.timezone.utc
+            )
+            endDt = datetime.datetime.fromtimestamp(
+                int(endTs), tz=datetime.timezone.utc
+            )
 
-            self.df = pd.DataFrame()
-            self.ohlc_df = pd.DataFrame()
+            while self.ohlc_df.index[0] > startDt:
+                df, ohlc_df = self.ohlc_q.get()
+                self.df = pd.concat([df, self.df])
+                self.ohlc_df = pd.concat([ohlc_df, self.ohlc_df])
 
-            self.ohlc_info_q.put([self.symbols[self.index], self.interval])
-            self.live_info_q.put([self.symbols[self.index], self.interval])
+            if fetchLive:
+                self.live_df, self.live_ohlc_df = self.live_ohlc_q.get()
 
-            while True:
-                try:
-                    self.live_df, self.live_ohlc_df = self.live_ohlc_q.get_nowait()
-                except Exception:
-                    self.live_df = pd.DataFrame()
-                    self.live_ohlc_df = pd.DataFrame()
-                    break
-                else:
-                    freq = self.live_ohlc_df.index.freq
-                    if (
-                        all(self.live_df["symbol"] == self.symbols[self.index])
-                        and self.interval == str(freq.n) + freq.name
-                    ):
-                        break
+            ohlcIdx = self.ohlc_df.index
+            mask = (ohlcIdx >= startDt) & (ohlcIdx <= endDt)
+            ohlc = self.ohlc_df[mask]
 
-        while len(self.ohlc_df) < total_bars:
+            liveOhlcIdx = self.live_ohlc_df.index
+            liveMask = (liveOhlcIdx >= startDt) & (liveOhlcIdx <= endDt)
+            liveOhlc = self.live_ohlc_df[liveMask]
+
+            data = pd.concat([ohlc, liveOhlc])
+            data.index = data.index.astype("int64") // 1e09
+            return self.ohlc_df.index[0].timestamp(), data.reset_index().to_numpy()
+
+        else:
+            data = pd.concat([self.ohlc_df, self.live_ohlc_df])
+            data.index = data.index.astype("int64") // 1e09
+            return data.reset_index().to_numpy()
+
+    def setIndex(self, index):
+        if index != self.index:
+            self.index = index
+        self.invalidateData()
+
+    def setInterval(self, interval):
+        if interval != self.interval:
+            self.interval = interval
+        self.invalidateData()
+
+    def invalidateData(self):
+        self.ohlc_info_q.put([self.symbols[self.index], self.interval])
+        self.live_info_q.put([self.symbols[self.index], self.interval])
+
+        self.df = pd.DataFrame()
+        self.ohlc_df = pd.DataFrame()
+        self.live_df = pd.DataFrame()
+        self.live_ohlc_df = pd.DataFrame()
+
+        while True:
+            live_df, live_ohlc_df = self.live_ohlc_q.get()
+            freq = live_ohlc_df.index.freq
+            if (
+                all(live_df["symbol"] == self.symbols[self.index])
+                and self.interval == str(freq.n) + freq.name
+            ):
+                self.live_df = pd.concat([live_df, self.live_df])
+                self.live_ohlc_df = pd.concat([live_ohlc_df, self.live_ohlc_df])
+                break
+
+        while True:
             df, ohlc_df = self.ohlc_q.get()
             freq = ohlc_df.index.freq
             if (
@@ -277,14 +313,7 @@ class Database(object):
             ):
                 self.df = pd.concat([df, self.df])
                 self.ohlc_df = pd.concat([ohlc_df, self.ohlc_df])
-
-        if fetch_live:
-            self.live_df, self.live_ohlc_df = self.live_ohlc_q.get()
-
-        ohlc = pd.concat([self.ohlc_df[-total_bars:], self.live_ohlc_df])
-        self.ohlc_idx = ohlc.index
-
-        return ohlc
+                break
 
     def volumeOnPrice(self, start_dt, end_dt, num):
         live_df, _ = self.live_ohlc_q.get()
