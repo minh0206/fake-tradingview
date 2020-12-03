@@ -1,4 +1,6 @@
-import datetime
+from datetime import datetime
+from datetime import timezone
+
 from time import time
 import numpy as np
 import pyqtgraph as pg
@@ -16,19 +18,25 @@ class CandlestickItem(pg.GraphicsObject):
         self.db = db
         self.ohlc = None
         self.data = None
+
         self.anchor = None
         self.step = None
+
         self.path = None
         self.limit = 500
-        self.totalBars = 500
+        # self.totalBars = 500
         self.plotting = False
-        self.dateFormat = None
+        self.dateFormat = self.db.getDateFormat()
+
         self._boundingRect = None
         self._boundsCache = [None, None]
 
         # Data init
-        ohlc = self.db.ohlc(self.totalBars, fetch_live=True)
-        self.setOHLC(ohlc)
+        # self.updateOHLC()
+        # self.dataBounds(1)
+        data = self.db.getData()
+        self.setData(data)
+        # self.getViewWidget().enableAutoRange(x=False, y=True)
 
         # Crosshair init
         self.vLine = pg.InfiniteLine(angle=90)
@@ -42,88 +50,32 @@ class CandlestickItem(pg.GraphicsObject):
         self.hTxt = pg.TextItem(fill=(255, 255, 255, 50))
         self.hTxt.setParentItem(self)
 
-        # Connect signal
-        self.onUpdate.connect(self.updatePlotStatus)
-
-    def plot(self, index=None, interval=None, fetch=0, live=False, resetLim=False):
-        worker = Worker(self.plot_thread, index, interval, fetch, live, resetLim)
-        QtCore.QThreadPool.globalInstance().start(worker)
-        # self.plot_thread(index, interval, fetch, live, resetLim)
-
-    def plot_thread(
-        self, index=None, interval=None, fetch=0, live=False, resetLim=False
-    ):
-        if resetLim:
-            self.totalBars = 500
-
-        if fetch:
-            self.totalBars += fetch
-
-        start = time()
-        ohlc = self.db.ohlc(self.totalBars, live, index, interval)
-        logger.debug(
-            "OHLC | Time: {:.3} | Len: {} | Queue: {}".format(
-                time() - start, len(ohlc), self.db.ohlc_q.qsize()
-            )
-        )
-
-        if len(ohlc):
-            self.setOHLC(ohlc)
-            self.dataBounds(1)
-
-        if resetLim:
-            self.getViewWidget().enableAutoRange(x=False, y=True)
-
-        self.onUpdate.emit()
-
-    def updatePlotStatus(self):
-        self.plotting = False
-
-    def setOHLC(self, ohlc):
-        ohlc.index = ohlc.index.astype("int64") // 1e09
-
-        self.anchor = ohlc.index[0]
-        self.step = ohlc.index[1] - ohlc.index[0]
-        self.dateFormat = self.db.getDateFormat()
-
-        self.ohlc = ohlc.dropna().reset_index().to_numpy()
-        self.updateOHLC()
-
     def updateOHLC(self):
-        if self.ohlc is None:
-            self.setData([])
-            return
-
         vb = self.getViewBox()
         if vb is None:
+            self.plotting = False
             return  # no ViewBox yet
         else:
             xRange = vb.viewRange()[0]
-            if xRange == [0, 1]:
+            if xRange[1] - xRange[0] == 1:
+                self.plotting = False
                 return
-            else:
-                dist = self.anchor - xRange[0]
-                if not self.plotting and dist > 0:
-                    numBars = int(dist / self.step)
-                    self.plotting = True
-                    self.plot(fetch=numBars)
 
-        start = max(0, int(xRange[0]) - 1)
-        stop = int(min(self.ohlc[-1][0], xRange[1] + 2))
-        ds = int((stop - start) / (self.limit * self.step)) + 1
+        start, stop = xRange
+        self.anchor, data = self.db.getData(start, stop)
+        step = data[1][0] - data[0][0]
+        ds = int((stop - start) / (step * self.limit)) + 1
 
-        timestamp = self.ohlc[:, 0]
         if ds == 1:
             # Small enough to display with no intervention.
-            visible = self.ohlc[(timestamp > start) * (timestamp < stop)]
+            visible = data
         else:
             # Here convert data into a down-sampled array suitable for visualizing.
-            # Must do this piecewise to limit memory usage.
-            chunk = self.ohlc[(timestamp > start) * (timestamp < stop)]
-
             # Cut off to fix bar jitter
-            anchor = (chunk[0][0] - self.anchor) / self.step
+            chunk = data[: (len(data) // ds) * ds]
+            anchor = (data[0][0] - self.anchor) / step
             offset = int(anchor % ds)
+            logger.debug([ds, offset])
             if offset:
                 chunk = chunk[ds - offset : -offset]
             visible = np.zeros((len(chunk) // ds, 5))
@@ -157,6 +109,8 @@ class CandlestickItem(pg.GraphicsObject):
         self.resetTransform()
 
     def setData(self, data):
+        if np.isnan(data).any():
+            a = 1
         self.data = data
 
         self.invalidateBounds()
@@ -165,6 +119,8 @@ class CandlestickItem(pg.GraphicsObject):
 
         self.path = None
         self.update()
+        self.plotting = False
+        # self.onUpdate.emit()
 
     def paint(self, p, *args):
         redBars, greenBars = self.getPath()
@@ -185,8 +141,10 @@ class CandlestickItem(pg.GraphicsObject):
                 redBars = QtGui.QPainterPath()
                 greenBars = QtGui.QPainterPath()
 
-                w = (self.data[1][0] - self.data[0][0]) / 3.0
-                for t, o, h, l, c in self.data:
+                data = self.data
+                self.step = data[1][0] - data[0][0]
+                w = (data[1][0] - data[0][0]) / 3.0
+                for t, o, h, l, c in data:
                     if o > c:
                         redBars.moveTo(QtCore.QPointF(t, l))
                         redBars.lineTo(QtCore.QPointF(t, h))
@@ -223,11 +181,11 @@ class CandlestickItem(pg.GraphicsObject):
         if cache is not None and cache[0] == (frac, orthoRange):
             return cache[1]
 
-        x = self.ohlc[:, 0]
-        y = self.ohlc[:, 2:4]
-
-        if x is None or len(x) == 0:
+        if self.data is None:
             return (None, None)
+
+        x = self.data[:, 0]
+        y = self.data[:, 1:]
 
         if ax == 0:
             d = x
@@ -260,8 +218,10 @@ class CandlestickItem(pg.GraphicsObject):
         self.prepareGeometryChange()
 
     def viewRangeChanged(self):
-        worker = Worker(self.updateOHLC)
-        QtCore.QThreadPool.globalInstance().start(worker)
+        if not self.plotting:
+            self.plotting = True
+            worker = Worker(self.updateOHLC)
+            QtCore.QThreadPool.globalInstance().start(worker)
         # self.updateOHLC()
 
     def onMouseMoved(self, pos):
@@ -270,7 +230,7 @@ class CandlestickItem(pg.GraphicsObject):
         xlim, ylim = self.getViewBox().viewRange()
         x = round((index - self.anchor) / self.step)
         timestamp = self.anchor + x * self.step
-        dt = datetime.datetime.fromtimestamp(timestamp)
+        dt = datetime.fromtimestamp(timestamp)
 
         self.vLine.setPos(timestamp)
         self.hLine.setPos(mouse_point.y())
@@ -281,8 +241,10 @@ class CandlestickItem(pg.GraphicsObject):
         self.vTxt.setPos(timestamp, ylim[0] + 0.05 * (ylim[1] - ylim[0]))
         self.hTxt.setPos(xlim[1] - 0.05 * (xlim[1] - xlim[0]), mouse_point.y())
 
-        dist = self.anchor - xlim[0]
-        numBars = int(dist / self.step)
-        if not self.plotting and numBars > 0:
-            self.plotting = True
-            self.plot(fetch=numBars)
+        # dist = self.anchor - xlim[0]
+        # numBars = int(dist / self.step)
+        # if not self.plotting and numBars > 0:
+        # logger.debug(numBars)
+        # self.plotting = True
+        # self.updateOHLC()
+
