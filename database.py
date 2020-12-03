@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 import os
 import shutil
+import tempfile
 from math import ceil, floor
 from multiprocessing import Process, Queue
 from time import sleep, time
@@ -30,10 +31,11 @@ class Database(object):
         self.live_ohlc_df = pd.DataFrame()
 
         self.index = index
+        self.ohlc_idx = None
         self.interval = interval
 
-        self.ohlc_q = Queue(20)
-        self.live_ohlc_q = Queue(10)
+        self.ohlc_q = Queue(10)
+        self.live_ohlc_q = Queue(5)
 
         self.ohlc_info_q = Queue(1)
         self.live_info_q = Queue(1)
@@ -57,34 +59,51 @@ class Database(object):
     def getDate(self):
         dtFormat = self.getDateFormat()
         fn = lambda dt: dt.strftime(dtFormat)
-        date = list(map(fn, self.ohlc_df.index.tz_convert(tzlocal())))
+        date = list(map(fn, self.ohlc_idx.tz_convert(tzlocal())))
 
         return date
 
-    def downloadData(self, date):
+    def downloadData(self, date, temp_dir):
         url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
             date
         )
-        fileName = url.split("/")[-1]
+
+        file_name_gz = url.split("/")[-1]
+        file_name = file_name_gz[:-3]
+
+        with requests.head(url) as r:
+            if not r.ok:
+                return
 
         with requests.get(url, stream=True) as r:
-            if r.ok:
-                with open(os.path.join("data", fileName), "wb") as f:
-                    shutil.copyfileobj(r.raw, f)
+            with open(os.path.join(temp_dir, file_name_gz), "wb") as f:
+                shutil.copyfileobj(r.raw, f)
+
+            with gzip.open(os.path.join(temp_dir, file_name_gz), "rb") as f_in:
+                with open(os.path.join(temp_dir, file_name), "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+        csv = pd.read_csv(os.path.join(temp_dir, file_name))
+        query = "symbol in {}".format(self.symbols)
+        df = csv.query(query)[["timestamp", "symbol", "side", "size", "price"]]
+
+        parser = lambda dt: dt.replace("D", "T")[:-6] + "000+00:00"
+        df.timestamp = df.timestamp.apply(parser)
+        df.to_csv("data/" + file_name, index=False)
 
     def updateHistoricalData(self):
         self.ohlc_info_q.put([self.symbols[self.index], self.interval])
+
         Process(
             target=self._update, args=(self.ohlc_info_q, self.ohlc_q), daemon=True,
         ).start()
-        self.df, self.ohlc_df = self.ohlc_q.get()
 
     def _update(self, ohlc_info_q, ohlc_q):
         self.updateHistoricalDataProcess()
-        self.readDataProcess(ohlc_info_q, ohlc_q)
+        self.ohlcProcess(ohlc_info_q, ohlc_q)
 
-    def readDataProcess(self, ohlc_info_q, ohlc_q):
-        logger.debug("Start reading data")
+    def ohlcProcess(self, ohlc_info_q, ohlc_q):
+        logger.info("Start OHLC process")
         while True:
             try:
                 symbol, interval = ohlc_info_q.get_nowait()
@@ -93,51 +112,46 @@ class Database(object):
             else:
                 if symbol != None or interval != None:
                     files = sorted(glob.glob("data/*"), reverse=True)
-                    logger.debug("--- Start {} {} ---".format(symbol, interval))
+                    logger.debug("---Start {} {}".format(symbol, interval))
                     while not ohlc_q.empty():
                         ohlc_q.get()
 
             if not ohlc_q.full():
                 file = files.pop(0)
-                csv = pd.read_csv(file, compression="gzip")
-
-                df = csv.query("symbol == '{}'".format(symbol))[
-                    ["timestamp", "symbol", "side", "size", "price"]
-                ]
-
-                parser = lambda dt: parse_datetime(dt.replace("D", "T") + "+00:00")
-                df.timestamp = pd.DatetimeIndex(df.timestamp.apply(parser))
-                df = df.set_index("timestamp")
-                ohlc = df.price.resample(interval).ohlc()
-
+                csv = pd.read_csv(
+                    file, index_col=0, parse_dates=True, date_parser=parse_datetime,
+                ).query("symbol == '{}'".format(symbol))
+                ohlc = csv.price.resample(interval).ohlc()
                 ohlc_q.put([csv, ohlc])
+                # logger.debug("Done reading")
 
     def updateHistoricalDataProcess(self):
-        logger.debug("Start update history process")
+        logger.info("Start update history process")
         file_name = os.listdir("data")
 
         if file_name:
-            start_dt = parse_datetime(file_name[-1][:-7])
+            start_dt = parse_datetime(file_name[-1][:-4])
         else:
-            start_dt = datetime.datetime(2019, 12, 31)
+            start_dt = datetime.datetime(2020, 11, 1)
 
         end_dt = datetime.datetime.now()
 
-        for n in range(1, int((end_dt.date() - start_dt.date()).days)):
-            date = start_dt + datetime.timedelta(n)
-            logger.debug("Downloading {}".format(date.date()))
-            self.downloadData(date.strftime("%Y%m%d"))
+        with tempfile.TemporaryDirectory(dir=os.getcwd()) as temp_dir:
+            for n in range(1, int((end_dt.date() - start_dt.date()).days)):
+                date = start_dt + datetime.timedelta(n)
+                logger.debug("Downloading {}".format(date))
+                self.downloadData(date.strftime("%Y%m%d"), temp_dir)
 
-        logger.debug("Done update history process")
+        logger.info("Done update history process")
 
     def updateLiveData(self):
         self.live_info_q.put([self.symbols[self.index], self.interval])
+
         Process(
             target=self.updateLiveDataProcess,
             args=(self.live_info_q, self.live_ohlc_q),
             daemon=True,
         ).start()
-        self.live_df, self.live_ohlc_df = self.live_ohlc_q.get()
 
     def updateLiveDataProcess(self, live_info_q, live_ohlc_q):
         client = bitmex.bitmex(test=False)
@@ -212,7 +226,7 @@ class Database(object):
             if last_dt > live_dt:
                 live = True
 
-            logger.debug(
+            logger.info(
                 "{} | {} {} {:.19} | Live queue {}".format(
                     s,
                     symbol,
@@ -226,72 +240,35 @@ class Database(object):
             if i % 5 == 0:
                 df.to_csv(file_name)
 
-    def getData(self, startTs=None, endTs=None, fetchLive=False):
-        if startTs is not None:
-            startDt = datetime.datetime.fromtimestamp(
-                int(startTs), tz=datetime.timezone.utc
-            )
-            endDt = datetime.datetime.fromtimestamp(
-                int(endTs), tz=datetime.timezone.utc
-            )
+    def ohlc(self, total_bars, fetch_live=False, index=None, interval=None):
+        if (interval is not None) or (index is not None):
+            if index != self.index and index is not None:
+                self.index = index
+            if interval != self.interval and interval is not None:
+                self.interval = interval
 
-            while self.ohlc_df.index[0] > startDt:
-                df, ohlc_df = self.ohlc_q.get()
-                logger.debug("OHLC | Queue: {}".format(self.ohlc_q.qsize()))
-                self.df = pd.concat([df, self.df])
-                self.ohlc_df = pd.concat([ohlc_df, self.ohlc_df])
+            self.df = pd.DataFrame()
+            self.ohlc_df = pd.DataFrame()
 
-            if fetchLive:
-                self.live_df, self.live_ohlc_df = self.live_ohlc_q.get()
+            self.ohlc_info_q.put([self.symbols[self.index], self.interval])
+            self.live_info_q.put([self.symbols[self.index], self.interval])
 
-            ohlcIdx = self.ohlc_df.index
-            mask = (ohlcIdx >= startDt) & (ohlcIdx <= endDt)
-            ohlc = self.ohlc_df[mask]
+            while True:
+                try:
+                    self.live_df, self.live_ohlc_df = self.live_ohlc_q.get_nowait()
+                except Exception:
+                    self.live_df = pd.DataFrame()
+                    self.live_ohlc_df = pd.DataFrame()
+                    break
+                else:
+                    freq = self.live_ohlc_df.index.freq
+                    if (
+                        all(self.live_df["symbol"] == self.symbols[self.index])
+                        and self.interval == str(freq.n) + freq.name
+                    ):
+                        break
 
-            liveOhlcIdx = self.live_ohlc_df.index
-            liveMask = (liveOhlcIdx >= startDt) & (liveOhlcIdx <= endDt)
-            liveOhlc = self.live_ohlc_df[liveMask]
-
-            data = pd.concat([ohlc, liveOhlc])
-            data.index = data.index.astype("int64") // 1e09
-            return self.ohlc_df.index[0].timestamp(), data.reset_index().to_numpy()
-
-        else:
-            data = pd.concat([self.ohlc_df, self.live_ohlc_df])
-            data.index = data.index.astype("int64") // 1e09
-            return data.reset_index().to_numpy()
-
-    def setIndex(self, index):
-        if index != self.index:
-            self.index = index
-        self.invalidateData()
-
-    def setInterval(self, interval):
-        if interval != self.interval:
-            self.interval = interval
-        self.invalidateData()
-
-    def invalidateData(self):
-        self.ohlc_info_q.put([self.symbols[self.index], self.interval])
-        self.live_info_q.put([self.symbols[self.index], self.interval])
-
-        self.df = pd.DataFrame()
-        self.ohlc_df = pd.DataFrame()
-        self.live_df = pd.DataFrame()
-        self.live_ohlc_df = pd.DataFrame()
-
-        while True:
-            live_df, live_ohlc_df = self.live_ohlc_q.get()
-            freq = live_ohlc_df.index.freq
-            if (
-                all(live_df["symbol"] == self.symbols[self.index])
-                and self.interval == str(freq.n) + freq.name
-            ):
-                self.live_df = pd.concat([live_df, self.live_df])
-                self.live_ohlc_df = pd.concat([live_ohlc_df, self.live_ohlc_df])
-                break
-
-        while True:
+        while len(self.ohlc_df) < total_bars:
             df, ohlc_df = self.ohlc_q.get()
             freq = ohlc_df.index.freq
             if (
@@ -300,14 +277,21 @@ class Database(object):
             ):
                 self.df = pd.concat([df, self.df])
                 self.ohlc_df = pd.concat([ohlc_df, self.ohlc_df])
-                break
 
-    def volumeOnPrice(self, startDt, endDt, num):
+        if fetch_live:
+            self.live_df, self.live_ohlc_df = self.live_ohlc_q.get()
+
+        ohlc = pd.concat([self.ohlc_df[-total_bars:], self.live_ohlc_df])
+        self.ohlc_idx = ohlc.index
+
+        return ohlc
+
+    def volumeOnPrice(self, start_dt, end_dt, num):
         live_df, _ = self.live_ohlc_q.get()
 
         df = self.df[self.df["symbol"] == self.symbols[self.index]]
         df = pd.concat([df, live_df])
-        df = df[((df.index >= startDt) & (df.index <= endDt))]
+        df = df[((df.index >= start_dt) & (df.index <= end_dt))]
 
         price_min = df.price.min()
         price_max = df.price.max()
@@ -332,11 +316,6 @@ class Database(object):
 
 if __name__ == "__main__":
     db = Database(0, "1H")
-    # db.updateHistoricalDataProcess()
-    # start = datetime.datetime(2020, 11, 27, tzinfo=datetime.timezone.utc)
-    # end = datetime.datetime(2020, 12, 3, tzinfo=datetime.timezone.utc)
-    # db.getData(start, end)
-    # db.setIndex(1)
 
     while True:
         pass
