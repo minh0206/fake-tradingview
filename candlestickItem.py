@@ -62,7 +62,13 @@ class CandlestickItem(pg.GraphicsObject):
                 return
 
         start, stop = xRange
+
+        t = time()
         self.anchor, data = self.db.getData(start, stop)
+        logger.debug(
+            "OHLC | Queue: {} | Time: {}".format(self.db.ohlc_q.qsize(), time() - t)
+        )
+
         step = data[1][0] - data[0][0]
         ds = int((stop - start) / (step * self.limit)) + 1
 
