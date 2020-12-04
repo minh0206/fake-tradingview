@@ -3,7 +3,6 @@ import sys
 import time
 
 import numpy as np
-import pyqtgraph.console
 from PyQt5 import QtCore, QtWidgets
 
 from database import Database
@@ -29,8 +28,6 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.previousIndex = 7
         self.ui.cbInterval.setCurrentIndex(7)
 
-        self.console = pyqtgraph.console.ConsoleWidget(namespace={"df": self.db.df})
-
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.updatePlot)
         self.timer.start(2000)
@@ -48,7 +45,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def actionConsole(self):
-        self.console.show()
+        self.db.console.show()
 
     @QtCore.pyqtSlot(int)
     def cbSymbolSelect(self, i):
