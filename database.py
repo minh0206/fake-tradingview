@@ -287,7 +287,10 @@ class Database(object):
             if i % 5 == 0:
                 df.to_csv(file_name)
 
-    def getData(self, startTs=None, endTs=None, fetchLive=False):
+    def getDataframe(self):
+        return pd.concat([self.df, self.liveDf])
+
+    def getOHLC(self, startTs=None, endTs=None, fetchLive=False):
         if fetchLive:
             try:
                 self.liveDf, self.liveOhlc = self.liveOhlcQ.get_nowait()

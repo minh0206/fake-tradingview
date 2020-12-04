@@ -15,7 +15,7 @@ class CandlestickItem(pg.GraphicsObject):
         # Candlestick
         self.db = db
         self.step = None
-        self.anchor, self.data = self.db.getData()
+        self.anchor, self.data = self.db.getOHLC()
         self.dateFormat = self.db.getDateFormat()
         self.path = None
         self.limit = 500
@@ -49,7 +49,7 @@ class CandlestickItem(pg.GraphicsObject):
     def setIndex(self, index):
         self.plotting = True
         self.db.setIndex(index)
-        self.anchor, data = self.db.getData(fetchLive=True)
+        self.anchor, data = self.db.getOHLC(fetchLive=True)
         self.plotting = False
 
         self.setData(data)
@@ -59,7 +59,7 @@ class CandlestickItem(pg.GraphicsObject):
 
         self.plotting = True
         self.db.setInterval(interval)
-        self.anchor, data = self.db.getData(fetchLive=True)
+        self.anchor, data = self.db.getOHLC(fetchLive=True)
         self.plotting = False
 
         self.setData(data)
@@ -86,7 +86,7 @@ class CandlestickItem(pg.GraphicsObject):
                 return
 
         start, stop = xRange
-        self.anchor, data = self.db.getData(start, stop, refresh)
+        self.anchor, data = self.db.getOHLC(start, stop, refresh)
 
         try:
             step = data[1][0] - data[0][0]

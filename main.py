@@ -29,7 +29,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.previousIndex = 7
         self.ui.cbInterval.setCurrentIndex(7)
 
-        self.console = pyqtgraph.console.ConsoleWidget(namespace={"db": self.db})
+        self.console = pyqtgraph.console.ConsoleWidget(namespace={"df": self.db.df})
 
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.updatePlot)
