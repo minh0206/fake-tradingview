@@ -23,6 +23,7 @@ from utils import logger
 
 class Database(object):
     def __init__(self, index, interval):
+        super().__init__()
         self.symbols = ["XBTUSD", "ETHUSD"]
 
         self.df = pd.DataFrame()
@@ -37,13 +38,13 @@ class Database(object):
         self.live_ohlc_q = Queue(5)
 
         self.ohlc_info_q = Queue(1)
-        self.live_info_q = Queue(10)
+        self.live_info_q = Queue(1)
 
         if not os.path.exists("data"):
             os.mkdir("data")
 
         self.updateHistoricalData()
-        # self.updateLiveData()
+        self.updateLiveData()
 
     def getDateFormat(self):
         if self.interval.find("S") != -1:
@@ -107,7 +108,7 @@ class Database(object):
         self.df, self.ohlc_df = self.ohlc_q.get()
 
     def _update(self, ohlc_info_q, ohlc_q):
-        # self.updateHistoricalDataProcess()
+        self.updateHistoricalDataProcess()
         self.readDataProcess(ohlc_info_q, ohlc_q)
 
     def readDataProcess(self, ohlc_info_q, ohlc_q):

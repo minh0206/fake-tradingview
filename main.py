@@ -71,7 +71,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def cbRefreshSelect(self, i):
         if i == 0:
             self.timer.stop()
-            self.visualizer.updatePlot(live=True)
+            self.visualizer.refresh()
             self.ui.statusbar.showMessage("Refresh", 1500)
         else:
             text = self.ui.cbRefresh.currentText()
@@ -81,7 +81,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def updatePlot(self):
-        self.visualizer.updatePlot(live=True)
+        self.visualizer.refresh()
 
 
 class Ui_MainWindow(object):

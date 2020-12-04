@@ -51,3 +51,6 @@ class Visualizer(DockArea):
         # QtCore.QThreadPool.globalInstance().start(worker)
         self.candlestick.setInterval(interval)
 
+    def refresh(self):
+        self.candlestick.updateOHLC(refresh=True)
+

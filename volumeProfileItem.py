@@ -73,7 +73,7 @@ class VolumeProfileItem(pg.GraphicsObject):
         self.textItems.append(items)
 
     def addData(self, start, end, num):
-        ohlcIdx = self.db.ohlc_idx
+        ohlcIdx = self.db.ohlc_df.index
         startDt = ohlcIdx[start]
         endDt = ohlcIdx[end]
         freq = ohlcIdx[1] - ohlcIdx[0]

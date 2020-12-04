@@ -10,8 +10,6 @@ from utils import Worker, logger
 
 
 class CandlestickItem(pg.GraphicsObject):
-    onUpdate = QtCore.pyqtSignal()
-
     def __init__(self, db):
         super().__init__()
         # Candlestick
@@ -41,7 +39,7 @@ class CandlestickItem(pg.GraphicsObject):
         self.hTxt = pg.TextItem(fill=(255, 255, 255, 50))
         self.hTxt.setParentItem(self)
 
-    def updateOHLC(self):
+    def updateOHLC(self, refresh=False):
         vb = self.getViewBox()
         if vb is None:
             self.plotting = False
@@ -55,13 +53,13 @@ class CandlestickItem(pg.GraphicsObject):
         start, stop = xRange
 
         t = time()
-        self.anchor, data = self.db.getData(start, stop)
+        self.anchor, data = self.db.getData(start, stop, refresh)
         logger.debug(
             "OHLC | Queue: {} | Time: {}".format(self.db.ohlc_q.qsize(), time() - t)
         )
         step = data[1][0] - data[0][0]
         ds = int((stop - start) / (step * self.limit)) + 1
-        logger.debug([ds, len(data)])
+        # logger.debug([ds, len(data)])
 
         if ds == 1:
             # Small enough to display with no intervention.
@@ -82,34 +80,28 @@ class CandlestickItem(pg.GraphicsObject):
             # Reshape open
             _open = chunk[: (len(chunk) // ds) * ds, 1].reshape(len(chunk) // ds, ds)
             if np.isnan(_open).any():
-                visible[:, 1] = self.getFirstNoNan(_open)
+                visible[:, 1] = self.filterNan(_open, first=True)
             else:
                 visible[:, 1] = chunk[: (len(chunk) // ds) * ds : ds, 1]
 
             # Reshape high
             high = chunk[: (len(chunk) // ds) * ds, 2].reshape(len(chunk) // ds, ds)
             if np.isnan(high).any():
-                a = 1
-                visible[:, 2] = high.max(axis=1)
-            else:
-                visible[:, 2] = high.max(axis=1)
+                high = np.nan_to_num(high, nan=-np.inf)
+            visible[:, 2] = high.max(axis=1)
 
             # Reshape low
             low = chunk[: (len(chunk) // ds) * ds, 3].reshape(len(chunk) // ds, ds)
             if np.isnan(low).any():
-                a = 1
-                visible[:, 3] = low.min(axis=1)
-            else:
-                visible[:, 3] = low.min(axis=1)
+                low = np.nan_to_num(low, nan=np.inf)
+            visible[:, 3] = low.min(axis=1)
 
             # Reshape close
             close = chunk[: (len(chunk) // ds) * ds, 4].reshape(len(chunk) // ds, ds)
             if np.isnan(close).any():
-                visible[:, 4] = self.getFirstNoNan(close)
+                visible[:, 4] = self.filterNan(close, first=False)
             else:
                 visible[:, 4] = chunk[: (len(chunk) // ds) * ds : ds, 4]
-
-            visible[:, 4] = chunk[1 : (len(chunk) // ds) * ds : ds, 4]
 
         self.setData(visible)  # update the plot
         self.resetTransform()
@@ -136,7 +128,6 @@ class CandlestickItem(pg.GraphicsObject):
 
         self.path = None
         self.update()
-        # self.onUpdate.emit()
 
     def paint(self, p, *args):
         redBars, greenBars = self.getPath()
@@ -157,14 +148,11 @@ class CandlestickItem(pg.GraphicsObject):
                 redBars = QtGui.QPainterPath()
                 greenBars = QtGui.QPainterPath()
 
-                data = self.data
-                self.step = data[1][0] - data[0][0]
-                w = (data[1][0] - data[0][0]) / 3.0
-                for d in data:
-                    if np.isnan(d).any():
-                        a = 1
-                    else:
-                        t, o, h, l, c = d
+                self.step = self.data[1][0] - self.data[0][0]
+                w = self.step / 3.0
+                for data in self.data:
+                    if not np.isnan(data).any():
+                        t, o, h, l, c = data
                         if o > c:
                             redBars.moveTo(QtCore.QPointF(t, l))
                             redBars.lineTo(QtCore.QPointF(t, h))
@@ -240,9 +228,9 @@ class CandlestickItem(pg.GraphicsObject):
     def viewRangeChanged(self):
         if not self.plotting:
             self.plotting = True
-            # worker = Worker(self.updateOHLC)
-            # QtCore.QThreadPool.globalInstance().start(worker)
-            self.updateOHLC()
+            worker = Worker(self.updateOHLC)
+            QtCore.QThreadPool.globalInstance().start(worker)
+            # self.updateOHLC()
 
     def onMouseMoved(self, pos):
         mouse_point = self.getViewBox().mapSceneToView(pos)
@@ -261,12 +249,15 @@ class CandlestickItem(pg.GraphicsObject):
         self.vTxt.setPos(timestamp, ylim[0] + 0.05 * (ylim[1] - ylim[0]))
         self.hTxt.setPos(xlim[1] - 0.05 * (xlim[1] - xlim[0]), mouse_point.y())
 
-    def getFirstNoNan(self, inputArray):
+    def filterNan(self, inputArray, first):
         outputArray = []
         for array in inputArray:
             if np.isnan(array).all():
                 outputArray.append(np.nan)
             else:
-                outputArray.append(array[~np.isnan(array)][0])
+                if first:
+                    outputArray.append(array[~np.isnan(array)][0])
+                else:
+                    outputArray.append(array[~np.isnan(array)][-1])
 
         return outputArray

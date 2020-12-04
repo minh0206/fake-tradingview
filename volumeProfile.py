@@ -24,7 +24,7 @@ class VolumeProfile(QtWidgets.QWidget):
         self.setNum(list(map(str, range(5, 35, 5))))
 
         self.volumeProfile = parent.visualizer.volumeProfile
-        parent.visualizer.candlestick.onUpdate.connect(self.updateDate)
+        self.updateDate()
 
     def updateDate(self):
         indexDt = self.volumeProfile.getDate()
@@ -40,7 +40,7 @@ class VolumeProfile(QtWidgets.QWidget):
     def setNum(self, num):
         self.ui.cbNum.clear()
         self.ui.cbNum.addItems(num)
-    
+
     def deleteAll(self):
         self.ui.table.clearContents()
         self.ui.table.setRowCount(0)
@@ -78,7 +78,7 @@ class VolumeProfile(QtWidgets.QWidget):
 
         else:
             QtWidgets.QMessageBox.critical(
-                self, "Wrong date", "Invalid or duplicate date"
+                self, "Date error", "Invalid or duplicate date"
             )
 
     @QtCore.pyqtSlot()
