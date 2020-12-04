@@ -44,14 +44,12 @@ class Visualizer(DockArea):
     def setIndex(self, index):
         worker = Worker(self.candlestick.setIndex, index)
         QtCore.QThreadPool.globalInstance().start(worker)
-        # self.candlestick.setIndex(index)
         self.volumeProfile.removeAll()
 
     def setInterval(self, interval):
         worker = Worker(self.candlestick.setInterval, interval)
         QtCore.QThreadPool.globalInstance().start(worker)
-        # self.candlestick.setInterval(interval)
 
     def refresh(self):
-        self.candlestick.updateOHLC(refresh=True)
+        self.candlestick.refresh()
 

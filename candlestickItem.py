@@ -39,6 +39,39 @@ class CandlestickItem(pg.GraphicsObject):
         self.hTxt = pg.TextItem(fill=(255, 255, 255, 50))
         self.hTxt.setParentItem(self)
 
+    def refresh(self):
+        if not self.plotting:
+            self.plotting = True
+            self.updateOHLC(refresh=True)
+
+    def setIndex(self, index):
+        self.plotting = True
+        self.db.setIndex(index)
+        self.anchor, data = self.db.getData(fetchLive=True)
+        self.plotting = False
+
+        self.setData(data)
+
+    def setInterval(self, interval):
+        self.dateFormat = self.db.getDateFormat()
+
+        self.plotting = True
+        self.db.setInterval(interval)
+        self.anchor, data = self.db.getData(fetchLive=True)
+        self.plotting = False
+
+        self.setData(data)
+
+    def setData(self, data):
+        self.data = data
+
+        self.invalidateBounds()
+        self.prepareGeometryChange()
+        self.informViewBoundsChanged()
+
+        self.path = None
+        self.update()
+
     def updateOHLC(self, refresh=False):
         vb = self.getViewBox()
         if vb is None:
@@ -67,7 +100,7 @@ class CandlestickItem(pg.GraphicsObject):
         else:
             # Here convert data into a down-sampled array suitable for visualizing.
             # Cut off to fix bar jitter
-            chunk = data[: (len(data) // ds) * ds]
+            chunk = data[-(len(data) // ds) * ds :]
             anchor = (data[0][0] - self.anchor) / step
             offset = int(anchor % ds)
             if offset:
@@ -106,34 +139,6 @@ class CandlestickItem(pg.GraphicsObject):
         self.setData(visible)  # update the plot
         self.resetTransform()
         self.plotting = False
-
-    def setIndex(self, index):
-        self.plotting = True
-        self.db.setIndex(index)
-        self.anchor, data = self.db.getData(fetchLive=True)
-        self.plotting = False
-
-        self.setData(data)
-
-    def setInterval(self, interval):
-        self.dateFormat = self.db.getDateFormat()
-
-        self.plotting = True
-        self.db.setInterval(interval)
-        self.anchor, data = self.db.getData(fetchLive=True)
-        self.plotting = False
-
-        self.setData(data)
-
-    def setData(self, data):
-        self.data = data
-
-        self.invalidateBounds()
-        self.prepareGeometryChange()
-        self.informViewBoundsChanged()
-
-        self.path = None
-        self.update()
 
     def paint(self, p, *args):
         redBars, greenBars = self.getPath()
@@ -236,7 +241,6 @@ class CandlestickItem(pg.GraphicsObject):
             self.plotting = True
             worker = Worker(self.updateOHLC)
             QtCore.QThreadPool.globalInstance().start(worker)
-            # self.updateOHLC()
 
     def onMouseMoved(self, pos):
         mouse_point = self.getViewBox().mapSceneToView(pos)
