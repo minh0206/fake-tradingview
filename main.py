@@ -3,6 +3,7 @@ import sys
 import time
 
 import numpy as np
+import pyqtgraph.console
 from PyQt5 import QtCore, QtWidgets
 
 from database import Database
@@ -27,22 +28,25 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.previousIndex = 7
         self.ui.cbInterval.setCurrentIndex(7)
 
-        # self.console = pyqtgraph.console.ConsoleWidget(
-        #     namespace={"vs": self.visualizer}
-        # )
-        # self.console.show()
+        self.console = pyqtgraph.console.ConsoleWidget(namespace={"db": self.db})
 
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.updatePlot)
+        self.timer.start(2000)
 
         self.ui.actionVolumeProfile.triggered.connect(self.actionVolumeProfile)
+        self.ui.actionConsole.triggered.connect(self.actionConsole)
+
         self.ui.cbSymbol.currentIndexChanged.connect(self.cbSymbolSelect)
         self.ui.cbInterval.activated.connect(self.cbIntervalSelect)
-        self.ui.cbRefresh.activated.connect(self.cbRefreshSelect)
 
     @QtCore.pyqtSlot()
     def actionVolumeProfile(self):
         self.volumeProfile.show()
+
+    @QtCore.pyqtSlot()
+    def actionConsole(self):
+        self.console.show()
 
     @QtCore.pyqtSlot(int)
     def cbSymbolSelect(self, i):
@@ -67,18 +71,6 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         self.ui.centralwidget.setFocus()
 
-    @QtCore.pyqtSlot(int)
-    def cbRefreshSelect(self, i):
-        if i == 0:
-            self.timer.stop()
-            self.visualizer.refresh()
-            self.ui.statusbar.showMessage("Refresh", 1500)
-        else:
-            text = self.ui.cbRefresh.currentText()
-            t = int(text.replace("s", "")) * 1000
-            self.timer.start(t)
-            self.ui.statusbar.showMessage("Refresh every " + text, 1500)
-
     @QtCore.pyqtSlot()
     def updatePlot(self):
         self.visualizer.refresh()
@@ -87,7 +79,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(800, 600)
+        MainWindow.resize(784, 600)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
@@ -96,7 +88,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.cbSymbol = QtWidgets.QComboBox(self.centralwidget)
         self.cbSymbol.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
-        self.cbSymbol.setObjectName("cb_symbol")
+        self.cbSymbol.setObjectName("cbSymbol")
         self.cbSymbol.addItem("")
         self.cbSymbol.addItem("")
         self.horizontalLayout.addWidget(self.cbSymbol)
@@ -104,7 +96,7 @@ class Ui_MainWindow(object):
         self.cbInterval.setEditable(True)
         self.cbInterval.setInsertPolicy(QtWidgets.QComboBox.InsertAtBottom)
         self.cbInterval.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
-        self.cbInterval.setObjectName("cb_interval")
+        self.cbInterval.setObjectName("cbInterval")
         self.cbInterval.addItem("")
         self.cbInterval.addItem("")
         self.cbInterval.addItem("")
@@ -127,14 +119,6 @@ class Ui_MainWindow(object):
         self.cbInterval.addItem("")
         self.cbInterval.addItem("")
         self.horizontalLayout.addWidget(self.cbInterval)
-        self.cbRefresh = QtWidgets.QComboBox(self.centralwidget)
-        self.cbRefresh.setObjectName("cb_refresh")
-        self.cbRefresh.addItem("")
-        self.cbRefresh.addItem("")
-        self.cbRefresh.addItem("")
-        self.cbRefresh.addItem("")
-        self.cbRefresh.addItem("")
-        self.horizontalLayout.addWidget(self.cbRefresh)
         spacerItem = QtWidgets.QSpacerItem(
             40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
         )
@@ -142,18 +126,27 @@ class Ui_MainWindow(object):
         self.verticalLayout.addLayout(self.horizontalLayout)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 26))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 784, 26))
         self.menubar.setObjectName("menubar")
         self.menuTools = QtWidgets.QMenu(self.menubar)
         self.menuTools.setObjectName("menuTools")
+        self.menuIndicator = QtWidgets.QMenu(self.menubar)
+        self.menuIndicator.setObjectName("menuIndicator")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
         self.actionVolumeProfile = QtWidgets.QAction(MainWindow)
-        self.actionVolumeProfile.setObjectName("actionVolume_profile")
+        self.actionVolumeProfile.setObjectName("actionVolumeProfile")
+        self.actionConsole = QtWidgets.QAction(MainWindow)
+        self.actionConsole.setObjectName("actionConsole")
+        self.actionVolume = QtWidgets.QAction(MainWindow)
+        self.actionVolume.setObjectName("actionVolume")
         self.menuTools.addAction(self.actionVolumeProfile)
+        self.menuTools.addAction(self.actionConsole)
+        self.menuIndicator.addAction(self.actionVolume)
         self.menubar.addAction(self.menuTools.menuAction())
+        self.menubar.addAction(self.menuIndicator.menuAction())
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -184,13 +177,11 @@ class Ui_MainWindow(object):
         self.cbInterval.setItemText(18, _translate("MainWindow", "1W"))
         self.cbInterval.setItemText(19, _translate("MainWindow", "1M"))
         self.cbInterval.setItemText(20, _translate("MainWindow", "-----"))
-        self.cbRefresh.setItemText(0, _translate("MainWindow", "Refresh"))
-        self.cbRefresh.setItemText(1, _translate("MainWindow", "5s"))
-        self.cbRefresh.setItemText(2, _translate("MainWindow", "10s"))
-        self.cbRefresh.setItemText(3, _translate("MainWindow", "15s"))
-        self.cbRefresh.setItemText(4, _translate("MainWindow", "20s"))
         self.menuTools.setTitle(_translate("MainWindow", "Tools"))
+        self.menuIndicator.setTitle(_translate("MainWindow", "Indicators"))
         self.actionVolumeProfile.setText(_translate("MainWindow", "Volume profile"))
+        self.actionConsole.setText(_translate("MainWindow", "Console"))
+        self.actionVolume.setText(_translate("MainWindow", "Volume"))
 
 
 if __name__ == "__main__":

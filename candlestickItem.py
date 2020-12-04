@@ -51,15 +51,15 @@ class CandlestickItem(pg.GraphicsObject):
                 return
 
         start, stop = xRange
-
-        t = time()
         self.anchor, data = self.db.getData(start, stop, refresh)
-        logger.debug(
-            "OHLC | Queue: {} | Time: {}".format(self.db.ohlc_q.qsize(), time() - t)
-        )
-        step = data[1][0] - data[0][0]
-        ds = int((stop - start) / (step * self.limit)) + 1
-        # logger.debug([ds, len(data)])
+
+        try:
+            step = data[1][0] - data[0][0]
+        except IndexError:
+            ds = 1
+        else:
+            ds = int((stop - start) / (step * self.limit)) + 1
+            # logger.debug([ds, len(data)])
 
         if ds == 1:
             # Small enough to display with no intervention.
@@ -108,15 +108,21 @@ class CandlestickItem(pg.GraphicsObject):
         self.plotting = False
 
     def setIndex(self, index):
+        self.plotting = True
         self.db.setIndex(index)
-        self.anchor, data = self.db.getData()
-        self.dateFormat = self.db.getDateFormat()
+        self.anchor, data = self.db.getData(fetchLive=True)
+        self.plotting = False
+
         self.setData(data)
 
     def setInterval(self, interval):
-        self.db.setInterval(interval)
-        self.anchor, data = self.db.getData()
         self.dateFormat = self.db.getDateFormat()
+
+        self.plotting = True
+        self.db.setInterval(interval)
+        self.anchor, data = self.db.getData(fetchLive=True)
+        self.plotting = False
+
         self.setData(data)
 
     def setData(self, data):

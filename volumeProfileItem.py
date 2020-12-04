@@ -1,7 +1,9 @@
+import datetime
+
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
-
+from dateutil.tz import tzlocal
 from pyqtgraph import QtCore, QtGui
 from sklearn.preprocessing import minmax_scale
 
@@ -23,9 +25,9 @@ class VolumeProfileItem(pg.GraphicsObject):
 
     def setAlpha(self, index, value):
         self.data[index][4] = value
-        self.setData()
+        self.updateData()
 
-    def setData(self):
+    def updateData(self):
         self.picture = QtGui.QPicture()
         p = QtGui.QPainter(self.picture)
 
@@ -73,19 +75,20 @@ class VolumeProfileItem(pg.GraphicsObject):
         self.textItems.append(items)
 
     def addData(self, start, end, num):
-        ohlcIdx = self.db.ohlc_df.index
-        startDt = ohlcIdx[start]
-        endDt = ohlcIdx[end]
-        freq = ohlcIdx[1] - ohlcIdx[0]
+        dateFormat = self.db.getDateFormat()
+        startDt = datetime.datetime.strptime(start, dateFormat).replace(
+            tzinfo=tzlocal()
+        )
+        endDt = datetime.datetime.strptime(end, dateFormat).replace(tzinfo=tzlocal())
 
-        if (start < end) and ([start, end] not in [data[0] for data in self.data]):
-            x = (startDt.value / 1e09, endDt.value / 1e09)
-            df, y, step = self.db.volumeOnPrice(startDt, endDt + freq, num)
+        x = [int(startDt.timestamp()), int(endDt.timestamp())]
+        if (startDt < endDt) and (x not in [data[0] for data in self.data]):
+            df, y, step = self.db.volumeOnPrice(startDt, endDt, num)
             data = [x, y, df, step, 127]
 
             self.data.append(data)
             self.addText(data)
-            self.setData()
+            self.updateData()
             return True
         else:
             return False
@@ -96,7 +99,7 @@ class VolumeProfileItem(pg.GraphicsObject):
         self.textItems.pop(index)
 
         self.data.pop(index)
-        self.setData()
+        self.updateData()
 
     def removeAll(self):
         for _ in range(len(self.data)):
@@ -105,7 +108,7 @@ class VolumeProfileItem(pg.GraphicsObject):
             self.textItems.pop(0)
             self.data.pop(0)
 
-        self.setData()
+        self.updateData()
 
     def paint(self, p, *args):
         self.picture.play(p)

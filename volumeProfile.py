@@ -49,8 +49,8 @@ class VolumeProfile(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot()
     def btnAddClicked(self):
-        start = self.ui.cbStart.currentIndex()
-        end = self.ui.cbEnd.currentIndex()
+        start = self.ui.cbStart.currentText()
+        end = self.ui.cbEnd.currentText()
         num = int(self.ui.cbNum.currentText())
         result = self.volumeProfile.addData(start, end, num)
 
