@@ -206,6 +206,9 @@
    </property>
   </action>
   <action name="actionVolume">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Volume</string>
    </property>

@@ -42,7 +42,8 @@ class CandlestickItem(pg.GraphicsObject):
     def refresh(self):
         if not self.plotting:
             self.plotting = True
-            self.updateOHLC(refresh=True)
+            worker = Worker(self.updateOHLC, True)
+            QtCore.QThreadPool.globalInstance().start(worker)
 
     def setIndex(self, index):
         self.plotting = True
@@ -100,7 +101,7 @@ class CandlestickItem(pg.GraphicsObject):
         else:
             # Here convert data into a down-sampled array suitable for visualizing.
             # Cut off to fix bar jitter
-            chunk = data[-(len(data) // ds) * ds :]
+            chunk = data[: (len(data) // ds) * ds]
             anchor = (data[0][0] - self.anchor) / step
             offset = int(anchor % ds)
             if offset:
