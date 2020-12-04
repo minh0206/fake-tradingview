@@ -35,7 +35,7 @@ class Database(object):
         self.interval = interval
 
         self.ohlcQ = Queue(20)
-        self.liveOhlcQ = Queue(1)
+        self.liveOhlcQ = Queue(4)
 
         self.ohlcInfo = Queue(1)
         self.liveInfo = Queue(1)
@@ -59,10 +59,12 @@ class Database(object):
     def getDate(self):
         dtFormat = self.getDateFormat()
         index = self.ohlc.index.append(self.liveOhlc.index)
-        fn = lambda dt: dt.strftime(dtFormat)
-        date = list(map(fn, index.tz_convert(tzlocal())))
-
-        return date
+        try:
+            date = index.tz_convert(tzlocal()).strftime(dtFormat)
+        except Exception:
+            return []
+        else:
+            return date
 
     def downloadData(self, date, temp_dir):
         url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(

@@ -43,6 +43,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def actionVolumeProfile(self):
+        self.volumeProfile.updateDate()
         self.volumeProfile.show()
 
     @QtCore.pyqtSlot()

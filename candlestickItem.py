@@ -42,8 +42,9 @@ class CandlestickItem(pg.GraphicsObject):
     def refresh(self):
         if not self.plotting:
             self.plotting = True
-            worker = Worker(self.updateOHLC, True)
-            QtCore.QThreadPool.globalInstance().start(worker)
+            self.updateOHLC(True)
+            # worker = Worker(self.updateOHLC, True)
+            # QtCore.QThreadPool.globalInstance().start(worker)
 
     def setIndex(self, index):
         self.plotting = True
