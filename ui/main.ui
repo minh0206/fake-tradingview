@@ -18,7 +18,7 @@
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
-       <widget class="QComboBox" name="cb_symbol">
+       <widget class="QComboBox" name="cbSymbol">
         <property name="sizeAdjustPolicy">
          <enum>QComboBox::AdjustToContents</enum>
         </property>
@@ -35,7 +35,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QComboBox" name="cb_interval">
+       <widget class="QComboBox" name="cbInterval">
         <property name="editable">
          <bool>true</bool>
         </property>
@@ -153,35 +153,6 @@
        </widget>
       </item>
       <item>
-       <widget class="QComboBox" name="cb_refresh">
-        <item>
-         <property name="text">
-          <string>Refresh</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>5s</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>10s</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>15s</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>20s</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item>
        <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -211,14 +182,35 @@
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionVolume_profile"/>
+    <addaction name="actionVolumeProfile"/>
+    <addaction name="actionConsole"/>
+   </widget>
+   <widget class="QMenu" name="menuIndicator">
+    <property name="title">
+     <string>Indicators</string>
+    </property>
+    <addaction name="actionVolume"/>
    </widget>
    <addaction name="menuTools"/>
+   <addaction name="menuIndicator"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionVolume_profile">
+  <action name="actionVolumeProfile">
    <property name="text">
     <string>Volume profile</string>
+   </property>
+  </action>
+  <action name="actionConsole">
+   <property name="text">
+    <string>Console</string>
+   </property>
+  </action>
+  <action name="actionVolume">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Volume</string>
    </property>
   </action>
  </widget>
