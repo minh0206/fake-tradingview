@@ -35,7 +35,7 @@ class Database(object):
         self.interval = interval
 
         self.ohlcQ = Queue(20)
-        self.liveOhlcQ = Queue(4)
+        self.liveOhlcQ = Queue(1)
 
         self.ohlcInfo = Queue(1)
         self.liveInfo = Queue(1)
