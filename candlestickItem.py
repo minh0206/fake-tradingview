@@ -1,7 +1,6 @@
-from datetime import datetime
-from datetime import timezone
-
+from datetime import datetime, timezone
 from time import time
+
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
@@ -10,41 +9,35 @@ from utils import Worker, logger
 
 
 class CandlestickItem(pg.GraphicsObject):
+    sigXRangeChanged = QtCore.pyqtSignal()
+    sigResized = QtCore.pyqtSignal()
+    onUpdate = QtCore.pyqtSignal()
+
     def __init__(self, db):
         super().__init__()
-        # Candlestick
         self.db = db
         self.step = None
-        self.anchor, self.data = self.db.getOHLC()
-        self.dateFormat = self.db.getDateFormat()
+        self.anchor = None
+        self.data = None
         self.path = None
         self.limit = 500
         self.plotting = False
+
+        self.autoRangeEnabled = True
 
         self._boundingRect = None
         self._boundsCache = [None, None]
 
         # Data init
-        self.setData(self.data)
-
-        # Crosshair init
-        self.vLine = pg.InfiniteLine(angle=90)
-        self.vLine.setParentItem(self)
-        self.hLine = pg.InfiniteLine(angle=0)
-        self.hLine.setParentItem(self)
-
-        # Text init
-        self.vTxt = pg.TextItem(fill=(255, 255, 255, 50))
-        self.vTxt.setParentItem(self)
-        self.hTxt = pg.TextItem(fill=(255, 255, 255, 50))
-        self.hTxt.setParentItem(self)
+        self.anchor, data = self.db.getOHLC()
+        self.setData(data)
 
     def refresh(self):
         if not self.plotting:
             self.plotting = True
-            self.updateOHLC(True)
-            # worker = Worker(self.updateOHLC, True)
-            # QtCore.QThreadPool.globalInstance().start(worker)
+            # self.updateOHLC(True)
+            worker = Worker(self.updateOHLC, True)
+            QtCore.QThreadPool.globalInstance().start(worker)
 
     def setIndex(self, index):
         self.plotting = True
@@ -73,6 +66,7 @@ class CandlestickItem(pg.GraphicsObject):
 
         self.path = None
         self.update()
+        self.onUpdate.emit()
 
     def updateOHLC(self, refresh=False):
         vb = self.getViewBox()
@@ -243,23 +237,8 @@ class CandlestickItem(pg.GraphicsObject):
             self.plotting = True
             worker = Worker(self.updateOHLC)
             QtCore.QThreadPool.globalInstance().start(worker)
-
-    def onMouseMoved(self, pos):
-        mouse_point = self.getViewBox().mapSceneToView(pos)
-        index = int(mouse_point.x())
-        xlim, ylim = self.getViewBox().viewRange()
-        x = round((index - self.anchor) / self.step)
-        timestamp = self.anchor + x * self.step
-        dt = datetime.fromtimestamp(timestamp)
-
-        self.vLine.setPos(timestamp)
-        self.hLine.setPos(mouse_point.y())
-
-        self.vTxt.setText(dt.strftime(self.dateFormat))
-        self.hTxt.setText("{:.2f}".format(mouse_point.y()))
-
-        self.vTxt.setPos(timestamp, ylim[0] + 0.05 * (ylim[1] - ylim[0]))
-        self.hTxt.setPos(xlim[1] - 0.05 * (xlim[1] - xlim[0]), mouse_point.y())
+            self.sigXRangeChanged.emit()
+            self.sigResized.emit()
 
     def filterNan(self, inputArray, first):
         outputArray = []

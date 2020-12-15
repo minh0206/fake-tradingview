@@ -3,6 +3,7 @@ import sys
 import time
 
 import numpy as np
+import pyqtgraph.console
 from PyQt5 import QtCore, QtWidgets
 
 from database import Database
@@ -18,34 +19,39 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        # Init
         self.db = Database(0, "5T")
-
         self.visualizer = Visualizer(self)
-        self.ui.verticalLayout.addWidget(self.visualizer)
-
+        self.ui.verticalLayout.addWidget(self.visualizer.dockArea)
         self.volumeProfile = VolumeProfile(self)
+        self.console = pyqtgraph.console.ConsoleWidget(
+            namespace={"vs": self.visualizer}
+        )
 
-        self.previousIndex = 7
-        self.ui.cbInterval.setCurrentIndex(7)
-
+        # Auto update
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.updatePlot)
+        self.timer.timeout.connect(self.visualizer.refresh)
         self.timer.start(2000)
 
+        # Tool menu
         self.ui.actionVolumeProfile.triggered.connect(self.actionVolumeProfile)
-        self.ui.actionConsole.triggered.connect(self.actionConsole)
+        self.ui.actionConsole.triggered.connect(self.console.show)
 
-        self.ui.cbSymbol.currentIndexChanged.connect(self.cbSymbolSelect)
+        # Indicator menu
+        self.ui.actionVolume.toggled.connect(
+            lambda checked: self.visualizer.toggleVolume(checked)
+        )
+
+        # Toolbar
+        self.previousIndex = 7
+        self.ui.cbInterval.setCurrentIndex(7)
         self.ui.cbInterval.activated.connect(self.cbIntervalSelect)
+        self.ui.cbSymbol.currentIndexChanged.connect(self.cbSymbolSelect)
 
     @QtCore.pyqtSlot()
     def actionVolumeProfile(self):
         self.volumeProfile.updateDate()
         self.volumeProfile.show()
-
-    @QtCore.pyqtSlot()
-    def actionConsole(self):
-        self.db.console.show()
 
     @QtCore.pyqtSlot(int)
     def cbSymbolSelect(self, i):
@@ -69,10 +75,6 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.visualizer.setInterval(interval)
 
         self.ui.centralwidget.setFocus()
-
-    @QtCore.pyqtSlot()
-    def updatePlot(self):
-        self.visualizer.refresh()
 
 
 if __name__ == "__main__":

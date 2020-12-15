@@ -13,7 +13,6 @@ from time import sleep, time
 import bitmex
 import numpy as np
 import pandas as pd
-import pyqtgraph.console
 import requests
 from bitmex_websocket import BitMEXWebsocket
 from ciso8601 import parse_datetime
@@ -35,8 +34,8 @@ class Database(object):
         self.index = index
         self.interval = interval
 
-        self.ohlcQ = Queue(20)
-        self.liveOhlcQ = Queue(1)
+        self.ohlcQ = Queue(30)
+        self.liveOhlcQ = Queue(3)
 
         self.ohlcInfo = Queue(1)
         self.liveInfo = Queue(1)
@@ -46,7 +45,6 @@ class Database(object):
 
         self.updateHistoricalData()
         self.updateLiveData()
-        self.console = pyqtgraph.console.ConsoleWidget(namespace=self.getNamespace())
 
     def getDateFormat(self):
         if self.interval.find("S") != -1:
@@ -293,7 +291,7 @@ class Database(object):
         return {"ohlc": self.getDf}
 
     def getDf(self):
-        return pd.concat([self.ohlc, self.liveOhlc]).tz_convert(tzlocal())
+        return pd.concat([self.df, self.liveDf])
 
     def getOHLC(self, startTs=None, endTs=None, fetchLive=False):
         if fetchLive:
