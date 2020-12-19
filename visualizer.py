@@ -1,15 +1,15 @@
 import datetime
 import logging
 import time
-
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
-from pyqtgraph.dockarea import *
+from pyqtgraph.dockarea import DockArea
 
 from candlestickItem import CandlestickItem
 from utils import Worker, logger
 from volumeProfileItem import VolumeProfileItem
+from volumeItem import volumeItem
 
 
 class Visualizer:
@@ -47,9 +47,6 @@ class Visualizer:
         worker = Worker(self.candlestick.setInterval, interval)
         QtCore.QThreadPool.globalInstance().start(worker)
 
-    def refresh(self):
-        self.candlestick.refresh()
-
     def addPlot(self, name, plotWidget, stretch=1):
         if len(self.dockArea.docks):
             p = list(self.dockArea.docks.items())[-1][1].widgets[0].getPlotItem()
@@ -64,7 +61,7 @@ class Visualizer:
         plotWidget.hideAxis("left")
         plotWidget.showGrid(True, True, 0.25)
         plotWidget.hideButtons()
-        # plotWidget.setLimits(maxXRange=345600)
+        plotWidget.setLimits(maxXRange=345600, minXRange=60)
         plotWidget.scene().sigMouseMoved.connect(self.onMouseMoved)
         plotWidget.scene().sigMouseHover.connect(self.onMouseHover)
 
@@ -107,14 +104,9 @@ class Visualizer:
 
     def toggleVolume(self, checked):
         if checked:
-            _, df = self.db.getOHLC()
-
-            ts = df[:, 0]
-            diff = df[:, 2] - df[:, 3]
-
             volumeWidget = pg.PlotWidget(axisItems={"bottom": pg.DateAxisItem()})
-            plotItem = volumeWidget.plot(ts, diff)
-            plotItem.setDownsampling(auto=True, method="subsample")
+            plotItem = volumeItem(self.db)
+            volumeWidget.addItem(plotItem)
             self.addPlot("volume", volumeWidget)
         else:
             self.removePlot("volume")

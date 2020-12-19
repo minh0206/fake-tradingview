@@ -30,7 +30,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         # Auto update
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.visualizer.refresh)
+        self.timer.timeout.connect(self.visualizer.candlestick.refresh)
         self.timer.start(2000)
 
         # Tool menu

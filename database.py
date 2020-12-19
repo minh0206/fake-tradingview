@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import requests
 from bitmex_websocket import BitMEXWebsocket
-from ciso8601 import parse_datetime
+import ciso8601
 from dateutil.tz import tzlocal
 
 from utils import logger
@@ -138,7 +138,7 @@ class Database(object):
         #             ["timestamp", "symbol", "side", "size", "price"]
         #         ]
 
-        #         parser = lambda dt: parse_datetime(dt.replace("D", "T") + "+00:00")
+        #         parser = lambda dt: ciso8601.parse_datetime(dt.replace("D", "T") + "+00:00")
         #         df.timestamp = pd.DatetimeIndex(df.timestamp.apply(parser))
         #         df = df.set_index("timestamp")
         #         ohlc = df.price.resample(interval).ohlc()
@@ -161,13 +161,16 @@ class Database(object):
             if not ohlcQ.full():
                 file = files.pop(0)
                 csv = pd.read_csv(
-                    file, index_col=0, parse_dates=True, date_parser=parse_datetime,
+                    file,
+                    index_col=0,
+                    parse_dates=True,
+                    date_parser=ciso8601.parse_datetime,
                 ).query("symbol == '{}'".format(symbol))
                 ohlc = csv.price.resample(interval).ohlc()
                 ohlcQ.put([csv, ohlc])
                 logger.debug(
                     "Read data | Queue: {} --- {}".format(
-                        ohlcQ.qsize(), parse_datetime(file[5:-4]).date()
+                        ohlcQ.qsize(), ciso8601.parse_datetime(file[5:-4]).date()
                     )
                 )
 
@@ -178,7 +181,7 @@ class Database(object):
         # file_name = os.listdir("data")
 
         # if file_name:
-        #     start_dt = parse_datetime(file_name[-1][:-7])
+        #     start_dt = ciso8601.parse_datetime(file_name[-1][:-7])
         # else:
         #     start_dt = datetime.datetime(2019, 12, 31)
 
@@ -193,7 +196,7 @@ class Database(object):
         file_name = os.listdir("data")
 
         if file_name:
-            start_dt = parse_datetime(file_name[-1][:-4])
+            start_dt = ciso8601.parse_datetime(file_name[-1][:-4])
         else:
             start_dt = datetime.datetime(2020, 11, 1)
 
@@ -290,8 +293,35 @@ class Database(object):
     def getNamespace(self):
         return {"ohlc": self.getDf}
 
-    def getDf(self):
-        return pd.concat([self.df, self.liveDf])
+    def getDf(self, startTs=None, endTs=None, fetchLive=False):
+        if fetchLive:
+            try:
+                self.liveDf, self.liveOhlc = self.liveOhlcQ.get_nowait()
+            except Exception:
+                pass
+
+        if startTs is not None:
+            startDt = datetime.datetime.fromtimestamp(
+                int(startTs), tz=datetime.timezone.utc
+            )
+            endDt = datetime.datetime.fromtimestamp(
+                int(endTs), tz=datetime.timezone.utc
+            )
+
+            ohlcIdx = self.df.index
+            mask = (ohlcIdx >= startDt) & (ohlcIdx <= endDt)
+            ohlc = self.df[mask]
+
+            liveOhlcIdx = self.liveDf.index
+            liveMask = (liveOhlcIdx >= startDt) & (liveOhlcIdx <= endDt)
+            liveOhlc = self.liveDf[liveMask]
+
+            data = pd.concat([ohlc, liveOhlc])
+        else:
+            data = pd.concat([self.ohlc, self.liveOhlc])
+
+        data.index = data.index.astype("int64") // 1e09
+        return data.reset_index().to_numpy()
 
     def getOHLC(self, startTs=None, endTs=None, fetchLive=False):
         if fetchLive:

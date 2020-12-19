@@ -149,7 +149,7 @@ class CandlestickItem(pg.GraphicsObject):
 
     def getPath(self):
         if self.path is None:
-            if self.data is None or len(self.data) == 0:
+            if self.data is None or len(self.data) < 1:
                 self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
             else:
                 redBars = QtGui.QPainterPath()
