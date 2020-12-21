@@ -7,8 +7,6 @@ from dateutil.tz import tzlocal
 from pyqtgraph import QtCore, QtGui
 from sklearn.preprocessing import minmax_scale
 
-from logger import logger
-
 
 class VolumeProfileItem(pg.GraphicsObject):
     onUpdate = QtCore.pyqtSignal()
@@ -75,15 +73,11 @@ class VolumeProfileItem(pg.GraphicsObject):
         self.textItems.append(items)
 
     def addData(self, start, end, num):
-        dateFormat = self.db.getDateFormat()
-        startDt = datetime.datetime.strptime(start, dateFormat).replace(
-            tzinfo=tzlocal()
-        )
-        endDt = datetime.datetime.strptime(end, dateFormat).replace(tzinfo=tzlocal())
-
-        x = [int(startDt.timestamp()), int(endDt.timestamp())]
-        if (startDt < endDt) and (x not in [data[0] for data in self.data]):
-            df, y, step = self.db.volumeOnPrice(startDt, endDt, num)
+        x = [start.toUTC().toSecsSinceEpoch(), end.toUTC().toSecsSinceEpoch()]
+        if (start < end) and (x not in [data[0] for data in self.data]):
+            df, y, step = self.db.volumeOnPrice(
+                start.toPyDateTime(), end.toPyDateTime(), num
+            )
             data = [x, y, df, step, 127]
 
             self.data.append(data)

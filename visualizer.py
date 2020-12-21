@@ -105,7 +105,7 @@ class Visualizer:
     def toggleVolume(self, checked):
         if checked:
             volumeWidget = pg.PlotWidget(axisItems={"bottom": pg.DateAxisItem()})
-            plotItem = volumeItem(self.db)
+            plotItem = volumeItem(self)
             volumeWidget.addItem(plotItem)
             self.addPlot("volume", volumeWidget)
         else:
@@ -140,7 +140,7 @@ class Visualizer:
             self.hLines[self.mouseIndex].setValue(mousePoint.y())
 
             self.hTexts[self.mouseIndex].setColor(pg.mkColor(200, 200, 200))
-            self.hTexts[self.mouseIndex].setText("{:.2f}".format(mousePoint.y()))
+            self.hTexts[self.mouseIndex].setText("{:,.2f}".format(mousePoint.y()))
             self.hTexts[self.mouseIndex].setPos(xLim[1], mousePoint.y())
 
     def onMouseHover(self, items):

@@ -24,18 +24,16 @@ class VolumeProfile(QtWidgets.QWidget):
         self.setNum(list(map(str, range(5, 35, 5))))
 
         self.volumeProfile = parent.visualizer.volumeProfile
-        self.updateDate()
 
     def updateDate(self):
-        indexDt = self.volumeProfile.getDate()
+        dt = self.volumeProfile.getDate()
+        qDt = QtCore.QDateTime(
+            QtCore.QDate(dt.year, dt.month, dt.day),
+            QtCore.QTime(dt.hour, dt.minute, dt.second),
+        )
 
-        self.ui.cbStart.clear()
-        self.ui.cbStart.addItems(indexDt)
-        self.ui.cbStart.setCurrentIndex(len(indexDt) - 1)
-
-        self.ui.cbEnd.clear()
-        self.ui.cbEnd.addItems(indexDt)
-        self.ui.cbEnd.setCurrentIndex(len(indexDt) - 1)
+        self.ui.dteStart.setDateTime(qDt)
+        self.ui.dteEnd.setDateTime(qDt)
 
     def setNum(self, num):
         self.ui.cbNum.clear()
@@ -49,8 +47,8 @@ class VolumeProfile(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot()
     def btnAddClicked(self):
-        start = self.ui.cbStart.currentText()
-        end = self.ui.cbEnd.currentText()
+        start = self.ui.dteStart.dateTime()
+        end = self.ui.dteEnd.dateTime()
         num = int(self.ui.cbNum.currentText())
         result = self.volumeProfile.addData(start, end, num)
 
@@ -68,10 +66,18 @@ class VolumeProfile(QtWidgets.QWidget):
             btn.clicked.connect(self.btnDeleteHandle)
 
             self.ui.table.setItem(
-                row, 0, QtWidgets.QTableWidgetItem(self.ui.cbStart.currentText()),
+                row,
+                0,
+                QtWidgets.QTableWidgetItem(
+                    self.ui.dteStart.dateTime().toString("dd - MMM - yy | hh:mm:ss")
+                ),
             )
             self.ui.table.setItem(
-                row, 1, QtWidgets.QTableWidgetItem(self.ui.cbEnd.currentText()),
+                row,
+                1,
+                QtWidgets.QTableWidgetItem(
+                    self.ui.dteStart.dateTime().toString("dd - MMM - yy | hh:mm:ss")
+                ),
             )
             self.ui.table.setCellWidget(row, 2, slider)
             self.ui.table.setCellWidget(row, 3, btn)
@@ -119,42 +125,45 @@ class Ui_VolumeProfile(object):
         self.startDateLabel = QtWidgets.QLabel(self.formLayoutWidget)
         self.startDateLabel.setObjectName("startDateLabel")
         self.formLayout.setWidget(
-            0, QtWidgets.QFormLayout.LabelRole, self.startDateLabel
+            1, QtWidgets.QFormLayout.LabelRole, self.startDateLabel
         )
-        self.cbStart = QtWidgets.QComboBox(self.formLayoutWidget)
-        self.cbStart.setObjectName("cb_start")
-        self.formLayout.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.cbStart)
         self.endDateLabel = QtWidgets.QLabel(self.formLayoutWidget)
         self.endDateLabel.setObjectName("endDateLabel")
-        self.formLayout.setWidget(1, QtWidgets.QFormLayout.LabelRole, self.endDateLabel)
-        self.cbEnd = QtWidgets.QComboBox(self.formLayoutWidget)
-        self.cbEnd.setObjectName("cb_end")
-        self.formLayout.setWidget(1, QtWidgets.QFormLayout.FieldRole, self.cbEnd)
+        self.formLayout.setWidget(2, QtWidgets.QFormLayout.LabelRole, self.endDateLabel)
         self.numOfBinsLabel = QtWidgets.QLabel(self.formLayoutWidget)
         self.numOfBinsLabel.setObjectName("numOfBinsLabel")
         self.formLayout.setWidget(
-            2, QtWidgets.QFormLayout.LabelRole, self.numOfBinsLabel
+            3, QtWidgets.QFormLayout.LabelRole, self.numOfBinsLabel
         )
         self.cbNum = QtWidgets.QComboBox(self.formLayoutWidget)
-        self.cbNum.setObjectName("cb_num")
-        self.formLayout.setWidget(2, QtWidgets.QFormLayout.FieldRole, self.cbNum)
+        self.cbNum.setObjectName("cbNum")
+        self.formLayout.setWidget(3, QtWidgets.QFormLayout.FieldRole, self.cbNum)
+        self.dteStart = QtWidgets.QDateTimeEdit(self.formLayoutWidget)
+        self.dteStart.setCalendarPopup(True)
+        self.dteStart.setCurrentSectionIndex(0)
+        self.dteStart.setObjectName("dteStart")
+        self.formLayout.setWidget(1, QtWidgets.QFormLayout.FieldRole, self.dteStart)
+        self.dteEnd = QtWidgets.QDateTimeEdit(self.formLayoutWidget)
+        self.dteEnd.setCalendarPopup(True)
+        self.dteEnd.setObjectName("dteEnd")
+        self.formLayout.setWidget(2, QtWidgets.QFormLayout.FieldRole, self.dteEnd)
         self.verticalLayoutWidget = QtWidgets.QWidget(self.splitter)
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setObjectName("verticalLayout")
         self.btnAdd = QtWidgets.QPushButton(self.verticalLayoutWidget)
-        self.btnAdd.setObjectName("btn_add")
+        self.btnAdd.setObjectName("btnAdd")
         self.verticalLayout.addWidget(self.btnAdd)
         self.btnDelete = QtWidgets.QPushButton(self.verticalLayoutWidget)
-        self.btnDelete.setObjectName("btn_delete")
+        self.btnDelete.setObjectName("btnDelete")
         self.verticalLayout.addWidget(self.btnDelete)
         self.verticalLayout_2.addWidget(self.splitter)
         self.table = QtWidgets.QTableWidget(VolumeProfile)
         self.table.setObjectName("table")
+        self.table.setColumnCount(0)
+        self.table.setRowCount(0)
         self.verticalLayout_2.addWidget(self.table)
-        self.startDateLabel.setBuddy(self.cbStart)
-        self.endDateLabel.setBuddy(self.cbEnd)
         self.numOfBinsLabel.setBuddy(self.cbNum)
 
         self.retranslateUi(VolumeProfile)
@@ -166,5 +175,11 @@ class Ui_VolumeProfile(object):
         self.startDateLabel.setText(_translate("VolumeProfile", "Start date"))
         self.endDateLabel.setText(_translate("VolumeProfile", "End date"))
         self.numOfBinsLabel.setText(_translate("VolumeProfile", "Num of bins"))
+        self.dteStart.setDisplayFormat(
+            _translate("VolumeProfile", "dd - MMM - yy | hh:mm:ss")
+        )
+        self.dteEnd.setDisplayFormat(
+            _translate("VolumeProfile", "dd - MMM - yy | hh:mm:ss")
+        )
         self.btnAdd.setText(_translate("VolumeProfile", "Add"))
-        self.btnDelete.setText(_translate("VolumeProfile", "Delete all"))
+        self.btnDelete.setText(_translate("VolumeProfile", "Delete"))

@@ -14,6 +14,7 @@ class barGraphItem(pg.GraphicsObject):
         self.data = None
         self.path = None
 
+        self.autoRangeEnabled = True
         self._boundingRect = None
         self._boundsCache = [None, None]
 
@@ -30,17 +31,15 @@ class barGraphItem(pg.GraphicsObject):
     def paint(self, p, *args):
         redBars, greenBars = self.getPath()
 
-        p.setPen(pg.mkPen("g"))
-        p.setBrush(pg.mkBrush("g"))
+        p.setBrush(pg.mkBrush(0, 255, 0, 127))
         p.drawPath(greenBars)
 
-        p.setPen(pg.mkPen("r"))
-        p.setBrush(pg.mkBrush("r"))
+        p.setBrush(pg.mkBrush(255, 0, 0, 127))
         p.drawPath(redBars)
 
     def getPath(self):
         if self.path is None:
-            if self.data is None or len(self.data) < 1:
+            if self.data is None or len(self.data) < 2:
                 self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
             else:
                 redBars = QtGui.QPainterPath()

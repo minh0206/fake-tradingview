@@ -57,14 +57,7 @@ class Database(object):
         return dtFormat
 
     def getDate(self):
-        dtFormat = self.getDateFormat()
-        index = self.ohlc.index.append(self.liveOhlc.index)
-        try:
-            date = index.tz_convert(tzlocal()).strftime(dtFormat)
-        except Exception:
-            return []
-        else:
-            return date
+        return self.liveOhlc.index[-1]
 
     def downloadData(self, date, temp_dir):
         url = "https://s3-eu-west-1.amazonaws.com/public.bitmex.com/data/trade/{}.csv.gz".format(
@@ -290,38 +283,32 @@ class Database(object):
             if i % 5 == 0:
                 df.to_csv(file_name)
 
-    def getNamespace(self):
-        return {"ohlc": self.getDf}
+    def getVolume(self, startTs, endTs, ds):
+        timeDelta = self.ohlc.index[1] - self.ohlc.index[0]
+        startDt = datetime.datetime.fromtimestamp(
+            int(startTs), tz=datetime.timezone.utc
+        )
+        endDt = (
+            datetime.datetime.fromtimestamp(int(endTs), tz=datetime.timezone.utc)
+            + timeDelta
+        )
 
-    def getDf(self, startTs=None, endTs=None, fetchLive=False):
-        if fetchLive:
-            try:
-                self.liveDf, self.liveOhlc = self.liveOhlcQ.get_nowait()
-            except Exception:
-                pass
+        dfIdx = self.df.index
+        mask = (dfIdx >= startDt) & (dfIdx <= endDt)
+        liveIdx = self.liveDf.index
+        liveMask = (liveIdx >= startDt) & (liveIdx <= endDt)
 
-        if startTs is not None:
-            startDt = datetime.datetime.fromtimestamp(
-                int(startTs), tz=datetime.timezone.utc
-            )
-            endDt = datetime.datetime.fromtimestamp(
-                int(endTs), tz=datetime.timezone.utc
-            )
-
-            ohlcIdx = self.df.index
-            mask = (ohlcIdx >= startDt) & (ohlcIdx <= endDt)
-            ohlc = self.df[mask]
-
-            liveOhlcIdx = self.liveDf.index
-            liveMask = (liveOhlcIdx >= startDt) & (liveOhlcIdx <= endDt)
-            liveOhlc = self.liveDf[liveMask]
-
-            data = pd.concat([ohlc, liveOhlc])
+        try:
+            data = pd.concat([self.df[mask], self.liveDf[liveMask]])
+        except Exception:
+            pass
         else:
-            data = pd.concat([self.ohlc, self.liveOhlc])
+            buy = data.query("side == 'Buy'")["size"].resample(timeDelta * ds).sum()
+            sell = data.query("side == 'Sell'")["size"].resample(timeDelta * ds).sum()
+            volume = pd.concat([buy, sell], axis=1, keys=["buy", "sell"])
 
-        data.index = data.index.astype("int64") // 1e09
-        return data.reset_index().to_numpy()
+            volume.index = volume.index.astype("int64") // 1e09
+            return volume.reset_index().to_numpy()
 
     def getOHLC(self, startTs=None, endTs=None, fetchLive=False):
         if fetchLive:
@@ -348,8 +335,8 @@ class Database(object):
             mask = (ohlcIdx >= startDt) & (ohlcIdx <= endDt)
             ohlc = self.ohlc[mask]
 
-            liveOhlcIdx = self.liveOhlc.index
-            liveMask = (liveOhlcIdx >= startDt) & (liveOhlcIdx <= endDt)
+            liveIdx = self.liveOhlc.index
+            liveMask = (liveIdx >= startDt) & (liveIdx <= endDt)
             liveOhlc = self.liveOhlc[liveMask]
 
             data = pd.concat([ohlc, liveOhlc])

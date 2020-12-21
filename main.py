@@ -7,7 +7,7 @@ import pyqtgraph.console
 from PyQt5 import QtCore, QtWidgets
 
 from database import Database
-from ui import Ui_MainWindow
+from uiMain import Ui_MainWindow
 from utils import logger
 from visualizer import Visualizer
 from volumeProfile import VolumeProfile

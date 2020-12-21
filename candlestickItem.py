@@ -19,12 +19,12 @@ class CandlestickItem(pg.GraphicsObject):
         self.step = None
         self.anchor = None
         self.data = None
+        self.ds = 1
         self.path = None
         self.limit = 500
         self.plotting = False
 
         self.autoRangeEnabled = True
-
         self._boundingRect = None
         self._boundsCache = [None, None]
 
@@ -132,6 +132,7 @@ class CandlestickItem(pg.GraphicsObject):
             else:
                 visible[:, 4] = chunk[: (len(chunk) // ds) * ds : ds, 4]
 
+        self.ds = ds
         self.setData(visible)  # update the plot
         self.resetTransform()
         self.plotting = False
@@ -149,7 +150,7 @@ class CandlestickItem(pg.GraphicsObject):
 
     def getPath(self):
         if self.path is None:
-            if self.data is None or len(self.data) < 1:
+            if self.data is None or len(self.data) < 2:
                 self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
             else:
                 redBars = QtGui.QPainterPath()
