@@ -411,8 +411,8 @@ class Database(object):
         buy_bins = pd.cut(buy["price"], bins, include_lowest=True)
         sell_bins = pd.cut(sell["price"], bins, include_lowest=True)
 
-        buy = buy.groupby(buy_bins)["price"].agg("sum")
-        sell = sell.groupby(sell_bins)["price"].agg("sum")
+        buy = buy.groupby(buy_bins)["size"].agg("sum")
+        sell = sell.groupby(sell_bins)["size"].agg("sum")
 
         return (
             pd.concat([buy, sell], axis=1, keys=["buy", "sell"]),
