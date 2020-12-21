@@ -398,8 +398,6 @@ class Database(object):
         df = self.df[((self.df.index >= startDt) & (self.df.index <= endDt))]
         df = pd.concat([df, live_df])
 
-        df = df[df["symbol"] == self.symbols[self.index]]
-
         price_min = df.price.min()
         price_max = df.price.max()
 
@@ -408,11 +406,11 @@ class Database(object):
 
         bins, step = np.linspace(price_min, price_max, num + 1, retstep=True)
 
-        buy_bins = pd.cut(buy["price"], bins, include_lowest=True)
-        sell_bins = pd.cut(sell["price"], bins, include_lowest=True)
+        buyBins = pd.cut(buy["price"], bins, include_lowest=True)
+        sellBins = pd.cut(sell["price"], bins, include_lowest=True)
 
-        buy = buy.groupby(buy_bins)["size"].agg("sum")
-        sell = sell.groupby(sell_bins)["size"].agg("sum")
+        buy = buy["size"].groupby(buyBins).agg("sum")
+        sell = sell["size"].groupby(sellBins).agg("sum")
 
         return (
             pd.concat([buy, sell], axis=1, keys=["buy", "sell"]),

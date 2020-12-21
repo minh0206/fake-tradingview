@@ -30,18 +30,17 @@ class VolumeProfileItem(pg.GraphicsObject):
         p = QtGui.QPainter(self.picture)
 
         for x, y, df, step, alpha in self.data:
-            p.setPen(pg.mkPen(100, 100, 100, alpha))
-            p.setBrush(pg.mkBrush(100, 100, 100, alpha))
+            p.setPen(pg.mkPen(63, 63, 63, alpha))
+            p.setBrush(pg.mkBrush(63, 63, 63, alpha))
             p.drawRect(QtCore.QRectF(x[0], y[1], x[1] - x[0], y[0] - y[1]))
 
             x_length = x[1] - x[0]
             x_pos = minmax_scale(df.to_numpy(), (0.1 * x_length, x_length / 2))
-
             for interval, width in zip(df.index, x_pos):
-                p.setBrush(pg.mkBrush(255, 0, 0, alpha))
+                p.setBrush(pg.mkBrush(0, 255, 0, alpha))
                 p.drawRect(QtCore.QRectF(x[0], interval.left, width[0], step))
 
-                p.setBrush(pg.mkBrush(0, 255, 0, alpha))
+                p.setBrush(pg.mkBrush(255, 0, 0, alpha))
                 p.drawRect(
                     QtCore.QRectF(x[0] + width[0], interval.left, width[1], step)
                 )

@@ -79,10 +79,10 @@ class Visualizer:
         plotWidget.addItem(vLine, ignoreBounds=True)
 
         # Text init
-        self.vText = pg.TextItem(fill=(255, 255, 255, 50), anchor=(0, 1))
+        self.vText = pg.TextItem(fill="k", anchor=(0, 1))
         plotWidget.addItem(self.vText, ignoreBounds=True)
 
-        hText = pg.TextItem(fill=(255, 255, 255, 50), anchor=(1, 0))
+        hText = pg.TextItem(fill="k", anchor=(1, 0.5))
         plotWidget.addItem(hText, ignoreBounds=True)
 
         self.hLines[name] = hLine
