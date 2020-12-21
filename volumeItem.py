@@ -33,17 +33,22 @@ class volumeItem(barGraphItem):
         start = self.candlestick.data[0][0]
         stop = self.candlestick.data[-1][0]
         ds = self.candlestick.ds
+
         data = self.db.getVolume(start, stop, ds)
+        if np.isnan(data).any():
+            data = np.nan_to_num(data, nan=0)
+
+        logger.debug(data)
 
         self.setData(data)  # update the plot
         self.resetTransform()
         self.plotting = False
 
     def viewRangeChanged(self):
-        # self.updateBars()
-        if not self.plotting:
-            self.plotting = True
-            worker = Worker(self.updateBars)
-            QtCore.QThreadPool.globalInstance().start(worker)
-            self.sigXRangeChanged.emit()
-            self.sigResized.emit()
+        self.updateBars()
+        # if not self.plotting:
+        #     self.plotting = True
+        #     worker = Worker(self.updateBars)
+        #     QtCore.QThreadPool.globalInstance().start(worker)
+        #     self.sigXRangeChanged.emit()
+        #     self.sigResized.emit()

@@ -30,6 +30,7 @@ class barGraphItem(pg.GraphicsObject):
 
     def paint(self, p, *args):
         redBars, greenBars = self.getPath()
+        # p.setPen(pg.mkPen("k"))
 
         p.setBrush(pg.mkBrush(0, 255, 0, 127))
         p.drawPath(greenBars)
@@ -39,23 +40,23 @@ class barGraphItem(pg.GraphicsObject):
 
     def getPath(self):
         if self.path is None:
-            if self.data is None or len(self.data) < 2:
-                self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
-            else:
-                redBars = QtGui.QPainterPath()
-                greenBars = QtGui.QPainterPath()
+            # if self.data is None or len(self.data) < 2:
+            #     self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
+            # else:
+            redBars = QtGui.QPainterPath()
+            greenBars = QtGui.QPainterPath()
 
-                step = self.data[1][0] - self.data[0][0]
-                w = step / 3.0
-                for data in self.data:
-                    if not np.isnan(data).any():
-                        t, buy, sell = data
+            step = self.data[1][0] - self.data[0][0]
+            w = step / 3.0
+            for data in self.data:
+                if not np.isnan(data).any():
+                    t, buy, sell = data
 
-                        redBars.addRect(QtCore.QRectF(t - w, 0, w * 2, sell))
+                    redBars.addRect(QtCore.QRectF(t - w, 0, w * 2, sell))
 
-                        greenBars.addRect(QtCore.QRectF(t - w, sell, w * 2, buy))
+                    greenBars.addRect(QtCore.QRectF(t - w, sell, w * 2, buy))
 
-                self.path = [redBars, greenBars]
+            self.path = [redBars, greenBars]
 
         return self.path
 

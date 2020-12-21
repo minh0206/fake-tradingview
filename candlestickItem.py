@@ -48,8 +48,6 @@ class CandlestickItem(pg.GraphicsObject):
         self.setData(data)
 
     def setInterval(self, interval):
-        self.dateFormat = self.db.getDateFormat()
-
         self.plotting = True
         self.db.setInterval(interval)
         self.anchor, data = self.db.getOHLC(fetchLive=True)

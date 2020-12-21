@@ -17,7 +17,7 @@ class Visualizer:
         self.db = parent.db
         self.dockArea = DockArea(parent)
         self.mouseIndex = ""
-        self.dateFormat = self.db.getDateFormat()
+        self.dateFormat = self.getDateFormat("T")
 
         # Text and crosshair
         self.hLines = {}
@@ -46,6 +46,17 @@ class Visualizer:
     def setInterval(self, interval):
         worker = Worker(self.candlestick.setInterval, interval)
         QtCore.QThreadPool.globalInstance().start(worker)
+        self.dateFormat = self.getDateFormat(interval)
+
+    def getDateFormat(self, interval):
+        if interval.find("S") != -1:
+            dtFormat = "%d %b '%y  %H:%M:%S"
+        elif interval.find("T") != -1 or interval.find("H") != -1:
+            dtFormat = "%d %b '%y  %H:%M"
+        else:
+            dtFormat = "%d %b '%y"
+
+        return dtFormat
 
     def addPlot(self, name, plotWidget, stretch=1):
         if len(self.dockArea.docks):
@@ -61,7 +72,7 @@ class Visualizer:
         plotWidget.hideAxis("left")
         plotWidget.showGrid(True, True, 0.25)
         plotWidget.hideButtons()
-        plotWidget.setLimits(maxXRange=345600, minXRange=60)
+        plotWidget.setLimits(maxXRange=345600)
         plotWidget.scene().sigMouseMoved.connect(self.onMouseMoved)
         plotWidget.scene().sigMouseHover.connect(self.onMouseHover)
 

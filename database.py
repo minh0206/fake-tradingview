@@ -46,16 +46,6 @@ class Database(object):
         self.updateHistoricalData()
         self.updateLiveData()
 
-    def getDateFormat(self):
-        if self.interval.find("S") != -1:
-            dtFormat = "%d %b '%y  %H:%M:%S"
-        elif self.interval.find("T") != -1 or self.interval.find("H") != -1:
-            dtFormat = "%d %b '%y  %H:%M"
-        else:
-            dtFormat = "%d %b '%y"
-
-        return dtFormat
-
     def getDate(self):
         return self.liveOhlc.index[-1]
 
@@ -284,6 +274,9 @@ class Database(object):
                 df.to_csv(file_name)
 
     def getVolume(self, startTs, endTs, ds):
+        if not len(self.ohlc):
+            return None
+
         timeDelta = self.ohlc.index[1] - self.ohlc.index[0]
         startDt = datetime.datetime.fromtimestamp(
             int(startTs), tz=datetime.timezone.utc
@@ -293,22 +286,19 @@ class Database(object):
             + timeDelta
         )
 
-        dfIdx = self.df.index
-        mask = (dfIdx >= startDt) & (dfIdx <= endDt)
-        liveIdx = self.liveDf.index
-        liveMask = (liveIdx >= startDt) & (liveIdx <= endDt)
+        df = self.df[(self.df.index >= startDt) & (self.df.index <= endDt)]
+        liveDf = self.liveDf[
+            (self.liveDf.index >= startDt) & (self.liveDf.index <= endDt)
+        ]
 
-        try:
-            data = pd.concat([self.df[mask], self.liveDf[liveMask]])
-        except Exception:
-            pass
-        else:
-            buy = data.query("side == 'Buy'")["size"].resample(timeDelta * ds).sum()
-            sell = data.query("side == 'Sell'")["size"].resample(timeDelta * ds).sum()
-            volume = pd.concat([buy, sell], axis=1, keys=["buy", "sell"])
+        data = pd.concat([df, liveDf])
 
-            volume.index = volume.index.astype("int64") // 1e09
-            return volume.reset_index().to_numpy()
+        buy = data.query("side == 'Buy'")["size"].resample(timeDelta * ds).sum()
+        sell = data.query("side == 'Sell'")["size"].resample(timeDelta * ds).sum()
+        volume = pd.concat([buy, sell], axis=1, keys=["buy", "sell"])
+
+        volume.index = volume.index.astype("int64") // 1e09
+        return volume.reset_index().to_numpy()
 
     def getOHLC(self, startTs=None, endTs=None, fetchLive=False):
         if fetchLive:
