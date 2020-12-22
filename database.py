@@ -273,7 +273,7 @@ class Database(object):
             if i % 5 == 0:
                 df.to_csv(file_name)
 
-    def getVolume(self, startTs, endTs, ds):
+    def getVolume(self, startTs, endTs):
         if not len(self.ohlc):
             return None
 
@@ -293,8 +293,8 @@ class Database(object):
 
         data = pd.concat([df, liveDf])
 
-        buy = data.query("side == 'Buy'")["size"].resample(timeDelta * ds).sum()
-        sell = data.query("side == 'Sell'")["size"].resample(timeDelta * ds).sum()
+        buy = data.query("side == 'Buy'")["size"].resample(self.interval).sum()
+        sell = data.query("side == 'Sell'")["size"].resample(self.interval).sum()
         volume = pd.concat([buy, sell], axis=1, keys=["buy", "sell"])
 
         volume.index = volume.index.astype("int64") // 1e09

@@ -5,7 +5,7 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 
-from utils import Worker, logger
+from utils import logger
 
 
 class barGraphItem(pg.GraphicsObject):
@@ -30,33 +30,30 @@ class barGraphItem(pg.GraphicsObject):
 
     def paint(self, p, *args):
         redBars, greenBars = self.getPath()
-        # p.setPen(pg.mkPen("k"))
 
-        p.setBrush(pg.mkBrush(0, 255, 0, 127))
+        p.setPen(pg.mkPen("k"))
+        p.setBrush(pg.mkBrush(0, 255, 0, 255))
         p.drawPath(greenBars)
 
-        p.setBrush(pg.mkBrush(255, 0, 0, 127))
+        p.setBrush(pg.mkBrush(255, 0, 0, 255))
         p.drawPath(redBars)
 
     def getPath(self):
         if self.path is None:
-            # if self.data is None or len(self.data) < 2:
-            #     self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
-            # else:
-            redBars = QtGui.QPainterPath()
-            greenBars = QtGui.QPainterPath()
+            if self.data is None or len(self.data) < 2:
+                self.path = [QtGui.QPainterPath(), QtGui.QPainterPath()]
+            else:
+                redBars = QtGui.QPainterPath()
+                greenBars = QtGui.QPainterPath()
 
-            step = self.data[1][0] - self.data[0][0]
-            w = step / 3.0
-            for data in self.data:
-                if not np.isnan(data).any():
-                    t, buy, sell = data
+                step = self.data[1][0] - self.data[0][0]
+                w = step / 3.0
+                for t, buy, sell in self.data:
+                    if buy + sell != 0:
+                        redBars.addRect(QtCore.QRectF(t - w, 0, w * 2, sell))
+                        greenBars.addRect(QtCore.QRectF(t - w, sell, w * 2, buy))
 
-                    redBars.addRect(QtCore.QRectF(t - w, 0, w * 2, sell))
-
-                    greenBars.addRect(QtCore.QRectF(t - w, sell, w * 2, buy))
-
-            self.path = [redBars, greenBars]
+                self.path = [redBars, greenBars]
 
         return self.path
 
@@ -86,8 +83,10 @@ class barGraphItem(pg.GraphicsObject):
         if self.data is None:
             return (None, None)
 
+        zeros = np.zeros((len(self.data), 1))
+        total = self.data[:, 1:2] + self.data[:, 2:3]
         x = self.data[:, 0]
-        y = self.data[:, 1] + self.data[:, 2]
+        y = np.append(zeros, total, axis=1)
 
         if ax == 0:
             d = x
@@ -103,7 +102,7 @@ class barGraphItem(pg.GraphicsObject):
         if len(d) == 0:
             return (None, None)
 
-        b = (0, np.nanmax(d))
+        b = (np.nanmin(d), np.nanmax(d))
 
         if any(np.isinf(b)):
             mask = np.isfinite(d)
@@ -118,3 +117,26 @@ class barGraphItem(pg.GraphicsObject):
     def viewTransformChanged(self):
         self.invalidateBounds()
         self.prepareGeometryChange()
+
+
+# if __name__ == "__main__":
+#     import sys
+
+#     data = np.array(
+#         [  ## fields are (time, open, close, min, max).
+#             [1.0, 10, 13],
+#             [2.0, 13, 17],
+#             [3.0, 17, 14],
+#             [4.0, 14, 15],
+#             [5.0, 15, 9],
+#             [6.0, 9, 15],
+#         ]
+#     )
+
+#     item = barGraphItem()
+#     item.setData(data)
+#     plt = pg.plot()
+#     plt.addItem(item)
+#     plt.setWindowTitle("pyqtgraph example: customGraphicsItem")
+#     if sys.flags.interactive != 1 or not hasattr(QtCore, "PYQT_VERSION"):
+#         pg.QtGui.QApplication.exec_()
