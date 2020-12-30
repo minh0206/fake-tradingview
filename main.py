@@ -72,6 +72,9 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 interval = text.replace("m", "T")
             elif text[-1] == "h":
                 interval = text.replace("h", "H")
+            else:
+                interval = text
+
             self.visualizer.setInterval(interval)
 
         self.ui.centralwidget.setFocus()

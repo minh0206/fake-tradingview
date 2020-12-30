@@ -72,7 +72,7 @@ class Visualizer:
         plotWidget.hideAxis("left")
         plotWidget.showGrid(True, True, 0.25)
         plotWidget.hideButtons()
-        plotWidget.setLimits(maxXRange=345600)
+        # plotWidget.setLimits(maxXRange=345600)
         plotWidget.scene().sigMouseMoved.connect(self.onMouseMoved)
         plotWidget.scene().sigMouseHover.connect(self.onMouseHover)
 
